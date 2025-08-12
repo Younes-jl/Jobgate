@@ -40,7 +40,8 @@ INSTALLED_APPS = [
     'corsheaders',
     'rest_framework',
     'users.apps.UsersConfig',
-    'JobsInterview.apps.JobsinterviewConfig',
+    'interviews.apps.InterviewsConfig',
+    # 'JobsInterview.apps.JobsinterviewConfig', # Supprimé pour ne garder que l'authentification
 ]
 
 MIDDLEWARE = [
@@ -131,6 +132,24 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
+# Configuration de REST framework avec JWT
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+}
+
+# Configuration des JWT Tokens
+from datetime import timedelta
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+}
 
 
 AUTH_USER_MODEL = 'users.CustomUser'
@@ -139,6 +158,8 @@ AUTH_USER_MODEL = 'users.CustomUser'
 # Pour l'instant, on autorise seulement notre frontend React en développement.
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://frontend:3000",
 ]
 
 # Optionnel, mais recommandé pour un contrôle plus fin si besoin.
@@ -149,4 +170,10 @@ CORS_ALLOW_METHODS = [
      "PATCH",
      "POST",
      "PUT",
- ]
+]
+
+# Autoriser les en-têtes de crédentials dans les requêtes CORS
+CORS_ALLOW_CREDENTIALS = True
+
+# Autoriser tous les en-têtes
+CORS_ALLOW_ALL_HEADERS = True
