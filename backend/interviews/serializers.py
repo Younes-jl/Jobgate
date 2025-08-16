@@ -1,12 +1,15 @@
 from rest_framework import serializers
-from .models import JobOffer, InterviewCampaign, InterviewQuestion
+from .models import JobOffer, InterviewCampaign, InterviewQuestion, JobApplication
+from users.models import CustomUser
+from users.serializers import UserSerializer
 
 class JobOfferSerializer(serializers.ModelSerializer):
     """Serializer pour les offres d'emploi"""
     
     class Meta:
         model = JobOffer
-        fields = ['id', 'title', 'description', 'recruiter', 'location', 'created_at']
+        fields = ['id', 'title', 'description', 'recruiter', 'location', 'created_at',
+                  'salary', 'prerequisites', 'contract_type']
         read_only_fields = ['id', 'created_at', 'recruiter']
 
 class InterviewQuestionSerializer(serializers.ModelSerializer):
@@ -48,3 +51,33 @@ class InterviewCampaignCreateSerializer(serializers.ModelSerializer):
             InterviewQuestion.objects.create(campaign=campaign, **question_data)
         
         return campaign
+
+
+class JobApplicationSerializer(serializers.ModelSerializer):
+    """Serializer pour les candidatures simplifiées"""
+    candidate_name = serializers.SerializerMethodField()
+    job_title = serializers.SerializerMethodField()
+    status_display = serializers.SerializerMethodField()
+    candidate = UserSerializer(read_only=True)  # Utiliser UserSerializer pour inclure plus de détails
+    
+    class Meta:
+        model = JobApplication
+        fields = ['id', 'job_offer', 'candidate', 'status', 
+                  'created_at', 'updated_at', 'candidate_name', 'job_title', 'status_display']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'candidate_name', 'job_title', 'status_display']
+    
+    def get_candidate_name(self, obj):
+        return f"{obj.candidate.first_name} {obj.candidate.last_name}" if obj.candidate.first_name else obj.candidate.username
+    
+    def get_job_title(self, obj):
+        return obj.job_offer.title
+    
+    def get_status_display(self, obj):
+        return dict(JobApplication.STATUS_CHOICES)[obj.status]
+    
+    def create(self, validated_data):
+        # Assurez-vous que le candidat est bien celui qui est connecté
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            validated_data['candidate'] = request.user
+        return super().create(validated_data)

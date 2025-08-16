@@ -7,7 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, Navigate } from 'react-router-dom';
 import JobOfferList from './JobOfferList';
-import InterviewCampaign from '../interview/InterviewCampaign';
+import ApplicationsOverview from '../jobs/ApplicationsOverview';
 import { useAuth } from '../auth/useAuth';
 
 // Style simple pour l'en-tête du dashboard
@@ -82,10 +82,10 @@ function RecruiterDashboard() {
                     <div>
                         <h2>Bienvenue sur votre tableau de bord</h2>
                         <div style={{ marginTop: '20px', marginBottom: '30px' }}>
-                            <p>Bienvenue dans votre espace recruteur. Vous pouvez gérer vos offres d'emploi, campagnes d'entretiens et candidatures depuis ce tableau de bord.</p>
+                            <p>Bienvenue dans votre espace recruteur. Vous pouvez gérer vos offres d'emploi et candidatures depuis ce tableau de bord.</p>
                         </div>
                         
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px', marginTop: '30px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px', marginTop: '30px' }}>
                             <div style={{ 
                                 border: '1px solid #eee', 
                                 padding: '20px', 
@@ -116,12 +116,12 @@ function RecruiterDashboard() {
                                 borderRadius: '8px',
                                 boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
                             }}>
-                                <h3 style={{ borderBottom: '2px solid #3498db', paddingBottom: '10px', marginTop: 0 }}>Campagnes d'entretiens</h3>
-                                <p>Créez des campagnes d'entretiens vidéo pour vos offres d'emploi.</p>
+                                <h3 style={{ borderBottom: '2px solid #e74c3c', paddingBottom: '10px', marginTop: 0 }}>Candidatures</h3>
+                                <p>Consultez et gérez les candidatures reçues pour vos offres d'emploi.</p>
                                 <button 
-                                    onClick={() => handleMenuClick('campaigns')}
+                                    onClick={() => handleMenuClick('candidates')}
                                     style={{ 
-                                        backgroundColor: '#3498db', 
+                                        backgroundColor: '#e74c3c', 
                                         color: 'white', 
                                         padding: '8px 12px', 
                                         border: 'none', 
@@ -130,7 +130,7 @@ function RecruiterDashboard() {
                                         marginTop: '10px'
                                     }}
                                 >
-                                    Gérer les campagnes
+                                    Voir les candidatures
                                 </button>
                             </div>
                         </div>
@@ -139,23 +139,7 @@ function RecruiterDashboard() {
             case 'offers':
                 return <JobOfferList refreshTrigger={refreshTrigger} />;
             case 'candidates':
-                return (
-                    <div>
-                        <h2>Gestion des Candidats</h2>
-                        <p>Cette section est en cours de développement. Elle permettra de gérer les candidats qui ont postulé à vos offres.</p>
-                    </div>
-                );
-            case 'interviews':
-                return <InterviewCampaign />;
-            case 'campaigns':
-                return <InterviewCampaign />;
-            case 'settings':
-                return (
-                    <div>
-                        <h2>Paramètres du Compte</h2>
-                        <p>Cette section est en cours de développement. Elle permettra de configurer les paramètres de votre compte recruteur.</p>
-                    </div>
-                );
+                return <ApplicationsOverview />;
             default:
                 return <JobOfferList refreshTrigger={refreshTrigger} />;
         }
@@ -183,7 +167,7 @@ function RecruiterDashboard() {
                             borderRadius: '4px', 
                             cursor: 'pointer'
                         }}>
-                            + Créer une offre avec campagne
+                            + Créer une offre
                         </button>
                     </Link>
                 </div>
@@ -240,50 +224,6 @@ function RecruiterDashboard() {
                         >
                             <span style={{ marginRight: '10px', fontSize: '18px' }}>👥</span> 
                             <span style={{ color: 'white', textDecoration: 'none' }}>Candidats</span>
-                        </div>
-                        <div 
-                            style={{
-                                padding: '12px 20px',
-                                cursor: 'pointer',
-                                backgroundColor: activeMenu === 'interviews' ? '#34495e' : 'transparent',
-                                borderLeft: activeMenu === 'interviews' ? '4px solid #3498db' : '4px solid transparent',
-                                display: 'flex',
-                                alignItems: 'center'
-                            }}
-                            onClick={() => handleMenuClick('interviews')}
-                        >
-                            <span style={{ marginRight: '10px', fontSize: '18px' }}>🗓️</span> 
-                            <span style={{ color: 'white', textDecoration: 'none' }}>Entretiens</span>
-                        </div>
-                        
-                        <div 
-                            style={{
-                                padding: '12px 20px',
-                                cursor: 'pointer',
-                                backgroundColor: activeMenu === 'campaigns' ? '#34495e' : 'transparent',
-                                borderLeft: activeMenu === 'campaigns' ? '4px solid #3498db' : '4px solid transparent',
-                                display: 'flex',
-                                alignItems: 'center'
-                            }}
-                            onClick={() => handleMenuClick('campaigns')}
-                        >
-                            <span style={{ marginRight: '10px', fontSize: '18px' }}>🎥</span> 
-                            <span style={{ color: 'white', textDecoration: 'none' }}>Campagnes d'entretiens</span>
-                        </div>
-                        
-                        <div 
-                            style={{
-                                padding: '12px 20px',
-                                cursor: 'pointer',
-                                backgroundColor: activeMenu === 'settings' ? '#34495e' : 'transparent',
-                                borderLeft: activeMenu === 'settings' ? '4px solid #3498db' : '4px solid transparent',
-                                display: 'flex',
-                                alignItems: 'center'
-                            }}
-                            onClick={() => handleMenuClick('settings')}
-                        >
-                            <span style={{ marginRight: '10px', fontSize: '18px' }}>⚙️</span> 
-                            <span style={{ color: 'white', textDecoration: 'none' }}>Paramètres</span>
                         </div>
                     </div>
                 </aside>

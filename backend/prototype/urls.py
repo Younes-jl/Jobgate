@@ -6,7 +6,7 @@ from rest_framework.routers import DefaultRouter
 # On importe notre vue personnalisée depuis l'app 'users'
 from users.serializers import MyTokenObtainPairView
 from users.views import UserViewSet, register_user
-from interviews.views import JobOfferViewSet
+from interviews.views import JobOfferViewSet, job_applications_api
 
 # Création du routeur pour les vues de type ViewSet
 router = DefaultRouter()
@@ -27,6 +27,15 @@ urlpatterns = [
     
     # Endpoint pour la création d'offres d'emploi
     path('api/jobs/offers/', JobOfferViewSet.as_view({'post': 'create'}), name='job-offers-create'),
+    
+    # Endpoint pour récupérer toutes les offres (pour les candidats)
+    path('api/jobs/all-offers/', JobOfferViewSet.as_view({'get': 'all_offers'}), name='job-all-offers'),
+    
+    # Endpoint pour récupérer une offre par son ID (pour les détails)
+    path('api/jobs/offers/<int:pk>/', JobOfferViewSet.as_view({'get': 'retrieve'}), name='job-offer-detail'),
+    
+    # Endpoint direct pour les candidatures (pour corriger l'erreur 404)
+    path('api/interviews/applications/job/', job_applications_api, name='job-applications-api'),
     
     # Inclure les URLs de l'application interviews
     path('api/interviews/', include('interviews.urls')),

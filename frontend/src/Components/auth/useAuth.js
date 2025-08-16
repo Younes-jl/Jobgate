@@ -81,5 +81,9 @@ export const useAuth = () => {
         };
     }, []);
 
-    return { user, isTokenChecked };
+    return {
+        user, 
+        isTokenChecked,
+        isAuthenticated: user !== null // Ajoute la propriété isAuthenticated basée sur la présence d'un utilisateur
+    };
 };

@@ -188,10 +188,13 @@ const CreateOfferWithCampaign = () => {
             const offerData = {
                 title: offer.title,
                 description: offer.description,
-                location: offer.location
+                location: offer.location,
+                salary: offer.salary_range,
+                prerequisites: offer.requirements,
+                contract_type: offer.contract_type
             };
             
-            console.log("Données simplifiées de l'offre:", offerData);
+            console.log("Données de l'offre:", offerData);
             
             // Création de l'offre d'emploi
             const offerResponse = await api.post('/jobs/offers/', offerData);

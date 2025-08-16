@@ -11,6 +11,12 @@ import { BrowserRouter as Router, Routes, Route, Link, Navigate, useNavigate } f
 import LoginPage from './Components/auth/LoginPage';
 import RecruiterDashboard from './Components/dashboard/RecruiterDashboard';
 import CreateOfferWithCampaign from './Components/offer/CreateOfferWithCampaign';
+import CandidateDashboard from './Components/candidate/CandidateDashboard';
+import JobOfferDetails from './Components/candidate/JobOfferDetails';
+import ApplicationDetail from './Components/jobs/ApplicationDetail';
+
+// Importer les styles CSS
+import './Components/candidate/CandidateStyles.css';
 
 // Importer notre hook d'authentification
 import { useAuth } from './Components/auth/useAuth';
@@ -28,6 +34,11 @@ const HomePage = () => {
     // Rediriger automatiquement les recruteurs vers leur tableau de bord
     if (user && user.role === 'RECRUTEUR') {
         return <Navigate to="/dashboard" replace />;
+    }
+    
+    // Rediriger automatiquement les candidats vers leur dashboard
+    if (user && user.role === 'CANDIDAT') {
+        return <Navigate to="/candidate/dashboard" replace />;
     }
     
     return (
@@ -99,6 +110,9 @@ function App() {
                         {user && user.role === 'RECRUTEUR' && (
                             <Link to="/dashboard" style={{ marginRight: '15px' }}>Tableau de bord</Link>
                         )}
+                        {user && user.role === 'CANDIDAT' && (
+                            <Link to="/candidate/dashboard" style={{ marginRight: '15px' }}>Offres d'emploi</Link>
+                        )}
                     </div>
                     <div>
                         {user ? (
@@ -126,7 +140,7 @@ function App() {
                             user ? (
                                 user.role === 'RECRUTEUR' ? 
                                 <Navigate to="/dashboard" replace /> : 
-                                <Navigate to="/" replace />
+                                <Navigate to="/candidate/dashboard" replace />
                             ) : 
                             <LoginPage />
                         } />
@@ -142,6 +156,27 @@ function App() {
                         <Route path="/create-offer" element={
                             user && user.role === 'RECRUTEUR' ? 
                             <CreateOfferWithCampaign /> : 
+                            <Navigate to="/" replace />
+                        } />
+                        
+                        {/* Tableau de bord candidat (protégé) */}
+                        <Route path="/candidate/dashboard" element={
+                            user && user.role === 'CANDIDAT' ? 
+                            <CandidateDashboard /> : 
+                            <Navigate to="/" replace />
+                        } />
+                        
+                        {/* Détails d'une offre d'emploi (protégé) */}
+                        <Route path="/job-offers/:id" element={
+                            user && user.role === 'CANDIDAT' ? 
+                            <JobOfferDetails /> : 
+                            <Navigate to="/" replace />
+                        } />
+                        
+                        {/* Détails d'une candidature (protégé pour recruteur) */}
+                        <Route path="/applications/:id" element={
+                            user && user.role === 'RECRUTEUR' ? 
+                            <ApplicationDetail /> : 
                             <Navigate to="/" replace />
                         } />
                         

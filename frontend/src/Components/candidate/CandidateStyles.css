@@ -1,0 +1,226 @@
+/* Styles pour le tableau de bord du candidat */
+.candidate-dashboard {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.candidate-dashboard h2 {
+  color: #2c3e50;
+  margin-bottom: 20px;
+  font-size: 24px;
+}
+
+.job-offers-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.job-offer-card {
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  transition: transform 0.2s, box-shadow 0.2s;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.job-offer-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.job-offer-card h3 {
+  color: #3498db;
+  margin-top: 0;
+  margin-bottom: 10px;
+  font-size: 18px;
+}
+
+.job-offer-card .location {
+  color: #7f8c8d;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.job-offer-card .description {
+  color: #34495e;
+  flex-grow: 1;
+  margin-bottom: 15px;
+}
+
+.job-offer-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+}
+
+.job-offer-footer .date {
+  color: #95a5a6;
+  font-size: 12px;
+}
+
+.view-details-button {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 12px;
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.view-details-button:hover {
+  background-color: #2980b9;
+}
+
+/* Styles pour la page de détails d'une offre */
+.job-offer-details {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.back-button {
+  background: none;
+  border: none;
+  color: #3498db;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0;
+  margin-bottom: 20px;
+  display: inline-block;
+}
+
+.back-button:hover {
+  text-decoration: underline;
+}
+
+.job-offer-header {
+  margin-bottom: 30px;
+  border-bottom: 1px solid #ecf0f1;
+  padding-bottom: 20px;
+}
+
+.job-offer-header h2 {
+  color: #2c3e50;
+  margin-bottom: 10px;
+  font-size: 28px;
+}
+
+.job-offer-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin-bottom: 10px;
+}
+
+.job-offer-header .location,
+.job-offer-header .contract-type,
+.job-offer-header .salary {
+  color: #7f8c8d;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+}
+
+.job-offer-header .date {
+  display: block;
+  color: #95a5a6;
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+.icon-location:before {
+  content: "📍";
+  margin-right: 5px;
+}
+
+.icon-contract:before {
+  content: "📄";
+  margin-right: 5px;
+}
+
+.icon-salary:before {
+  content: "💰";
+  margin-right: 5px;
+}
+
+.job-offer-content h3 {
+  color: #34495e;
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 20px;
+}
+
+.job-offer-content .description {
+  color: #2c3e50;
+  line-height: 1.6;
+}
+
+.prerequisites-section {
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid #ecf0f1;
+}
+
+.prerequisites {
+  color: #2c3e50;
+  line-height: 1.6;
+}
+
+.prerequisites p {
+  margin-bottom: 10px;
+}
+
+.job-offer-actions {
+  margin-top: 30px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.apply-button {
+  background-color: #2ecc71;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 12px 24px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.apply-button:hover {
+  background-color: #27ae60;
+}
+
+/* États de chargement et d'erreur */
+.loading, .error, .not-found {
+  text-align: center;
+  padding: 50px 20px;
+}
+
+.error h2, .not-found h2 {
+  color: #e74c3c;
+}
+
+button {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 15px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+button:hover {
+  background-color: #2980b9;
+}
