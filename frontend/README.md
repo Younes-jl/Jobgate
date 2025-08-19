@@ -1,10 +1,42 @@
-# Getting Started with Create React App
+# JobGate - Frontend (React)
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Ce projet constitue la partie frontend de la plateforme JobGate, développée avec React.
 
-## Available Scripts
+## Structure du Projet
 
-In the project directory, you can run:
+La structure du projet a été réorganisée pour une meilleure compréhension et maintenance :
+
+```
+src/
+├── Components/
+│   ├── auth/              # Authentification
+│   │   ├── LoginPage.js   # Page de connexion
+│   │   ├── useAuth.js     # Hook d'authentification
+│   │   └── authApi.js     # API d'authentification
+│   │
+│   ├── Candidat/          # Interface candidat
+│   │   ├── CandidateDashboard.js    # Tableau de bord candidat
+│   │   ├── JobOfferDetails.js       # Détails d'offre d'emploi
+│   │   ├── jobOffersApi.js          # API d'offres d'emploi
+│   │   └── CandidateStyles.css      # Styles pour l'interface candidat
+│   │
+│   └── Recruteur/         # Interface recruteur
+│       ├── RecruiterDashboard.js    # Tableau de bord recruteur
+│       ├── JobOfferList.js          # Liste des offres
+│       ├── CreateOfferWithCampaign.js # Création d'offres
+│       ├── JobApplicationsList.js   # Liste des candidatures
+│       └── ...
+│
+├── services/              # Services d'API
+│   └── api.js             # Configuration Axios
+│
+└── utils/                 # Utilitaires
+    └── dateUtils.js       # Formatage des dates
+```
+
+## Scripts Disponibles
+
+Dans le répertoire du projet, vous pouvez exécuter :
 
 ### `npm start`
 
@@ -27,44 +59,36 @@ It correctly bundles React in production mode and optimizes the build for the be
 The build is minified and the filenames include the hashes.\
 Your app is ready to be deployed!
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## Directives de Développement
 
-### `npm run eject`
+Lorsque vous travaillez sur ce projet, suivez ces directives :
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+1. **Organisation des Composants** : Placez les nouveaux composants dans le dossier approprié selon l'interface utilisateur (Candidat ou Recruteur).
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+2. **Convention de Nommage** : 
+   - Pour les composants React : PascalCase (ex: `JobOfferList.js`)
+   - Pour les utilitaires et services : camelCase (ex: `dateUtils.js`)
+   - Pour les fichiers CSS : PascalCase ou camelCase correspondant au composant associé
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+3. **Documentation** : Utilisez des commentaires JSDoc pour documenter vos composants et fonctions :
+   ```javascript
+   /**
+    * Description du composant
+    * 
+    * @param {Object} props - Les propriétés du composant
+    * @param {string} props.name - Description de la propriété
+    * @returns {JSX.Element} - Élément JSX rendu
+    */
+   ```
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+4. **Gestion d'État** : Utilisez les hooks React (`useState`, `useEffect`) et le hook personnalisé `useAuth` pour l'authentification.
 
-## Learn More
+## Architecture de l'Application
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+L'application est divisée en deux interfaces principales :
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+- **Interface Recruteur** : Permet la gestion des offres d'emploi, la création de campagnes d'entretiens, et l'évaluation des candidatures.
 
-### Code Splitting
+- **Interface Candidat** : Permet la consultation des offres d'emploi, le dépôt de candidatures, et la participation aux entretiens vidéo.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Les deux interfaces partagent le même système d'authentification mais présentent des fonctionnalités distinctes adaptées à chaque rôle.

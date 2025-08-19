@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { fetchAllJobOffers } from './jobOffersApi';
 import './CandidateStyles.css';
 import { useAuth } from '../auth/useAuth';
-import JobApplicationsList from '../jobs/JobApplicationsList';
+import JobApplicationsList from '../Recruteur/JobApplicationsList';
 import { formatDate } from '../../utils/dateUtils';
 import api from '../../services/api';
 import { Modal, Button } from 'react-bootstrap';

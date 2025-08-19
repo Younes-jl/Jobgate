@@ -9,14 +9,13 @@ import { BrowserRouter as Router, Routes, Route, Link, Navigate, useNavigate } f
 
 // Importer les composants
 import LoginPage from './Components/auth/LoginPage';
-import RecruiterDashboard from './Components/dashboard/RecruiterDashboard';
-import CreateOfferWithCampaign from './Components/offer/CreateOfferWithCampaign';
-import CandidateDashboard from './Components/candidate/CandidateDashboard';
-import JobOfferDetails from './Components/candidate/JobOfferDetails';
-import ApplicationDetail from './Components/jobs/ApplicationDetail';
+import RecruiterDashboard from './Components/Recruteur/RecruiterDashboard';
+import CreateOfferWithCampaign from './Components/Recruteur/CreateOfferWithCampaign';
+import CandidateDashboard from './Components/Candidat/CandidateDashboard';
+import JobOfferDetails from './Components/Candidat/JobOfferDetails';
 
 // Importer les styles CSS
-import './Components/candidate/CandidateStyles.css';
+import './Components/Candidat/CandidateStyles.css';
 
 // Importer notre hook d'authentification
 import { useAuth } from './Components/auth/useAuth';
@@ -170,13 +169,6 @@ function App() {
                         <Route path="/job-offers/:id" element={
                             user && user.role === 'CANDIDAT' ? 
                             <JobOfferDetails /> : 
-                            <Navigate to="/" replace />
-                        } />
-                        
-                        {/* Détails d'une candidature (protégé pour recruteur) */}
-                        <Route path="/applications/:id" element={
-                            user && user.role === 'RECRUTEUR' ? 
-                            <ApplicationDetail /> : 
                             <Navigate to="/" replace />
                         } />
                         

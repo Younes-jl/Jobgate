@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, Table, Badge, Button, Form, Row, Col } from 'react-bootstrap';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import api from '../../services/api';
 import { formatDate } from '../../utils/dateUtils';
 
@@ -194,11 +194,9 @@ const JobApplicationsList = ({ jobOfferId }) => {
                   <td>{getStatusBadge(application.status)}</td>
                   <td>
                     <div className="d-flex gap-2">
-                      <Link to={`/applications/${application.id}`}>
-                        <Button variant="outline-primary" size="sm">
-                          <i className="bi bi-eye me-1"></i> Voir détails
-                        </Button>
-                      </Link>
+                      <Button variant="outline-primary" size="sm" disabled>
+                        <i className="bi bi-eye me-1"></i> Détails désactivés
+                      </Button>
                       <Form.Select 
                         size="sm"
                         style={{ width: '150px' }}
