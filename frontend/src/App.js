@@ -11,6 +11,7 @@ import { BrowserRouter as Router, Routes, Route, Link, Navigate, useNavigate } f
 import LoginPage from './Components/auth/LoginPage';
 import RecruiterDashboard from './Components/Recruteur/RecruiterDashboard';
 import CreateOfferWithCampaign from './Components/Recruteur/CreateOfferWithCampaign';
+import RecruiterJobOfferDetails from './Components/Recruteur/JobOfferDetails';
 import CandidateDashboard from './Components/Candidat/CandidateDashboard';
 import JobOfferDetails from './Components/Candidat/JobOfferDetails';
 
@@ -155,6 +156,13 @@ function App() {
                         <Route path="/create-offer" element={
                             user && user.role === 'RECRUTEUR' ? 
                             <CreateOfferWithCampaign /> : 
+                            <Navigate to="/" replace />
+                        } />
+                        
+                        {/* Détails d'une offre pour recruteur (protégé) */}
+                        <Route path="/offers/:id" element={
+                            user && user.role === 'RECRUTEUR' ? 
+                            <RecruiterJobOfferDetails /> : 
                             <Navigate to="/" replace />
                         } />
                         
