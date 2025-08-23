@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import JobOffer, InterviewCampaign, InterviewQuestion, JobApplication
+from .models import JobOffer, InterviewCampaign, InterviewQuestion, JobApplication, CampaignLink
 from users.models import CustomUser
 from users.serializers import UserSerializer
 
@@ -51,6 +51,30 @@ class InterviewCampaignCreateSerializer(serializers.ModelSerializer):
             InterviewQuestion.objects.create(campaign=campaign, **question_data)
         
         return campaign
+
+
+class CampaignLinkSerializer(serializers.ModelSerializer):
+    """Serializer pour exposer un lien d'invitation unique."""
+    start_url = serializers.SerializerMethodField()
+    campaign_id = serializers.IntegerField(source='campaign.id', read_only=True)
+    candidate_id = serializers.IntegerField(source='candidate.id', read_only=True)
+
+    class Meta:
+        model = CampaignLink
+        fields = [
+            'id', 'campaign_id', 'candidate_id', 'email', 'token',
+            'expires_at', 'used_at', 'uses_count', 'max_uses', 'revoked', 'start_url', 'created_at'
+        ]
+        read_only_fields = [
+            'id', 'token', 'expires_at', 'used_at', 'uses_count', 'max_uses', 'revoked', 'start_url', 'created_at',
+            'campaign_id', 'candidate_id'
+        ]
+
+    def get_start_url(self, obj):
+        request = self.context.get('request')
+        if request:
+            return request.build_absolute_uri(obj.get_start_path())
+        return obj.get_start_path()
 
 
 class JobApplicationSerializer(serializers.ModelSerializer):

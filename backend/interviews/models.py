@@ -1,6 +1,10 @@
 from django.db import models
 from django.utils import timezone
+from datetime import timedelta
+import secrets
 from users.models import CustomUser
+from django.conf import settings
+from django.db.models import Q, UniqueConstraint
 
 class JobOffer(models.Model):
     """
@@ -81,6 +85,144 @@ class InterviewQuestion(models.Model):
     
     def __str__(self):
         return f"{self.campaign.title} - Question {self.order}"
+
+
+def default_link_expiration():
+    """Retourne une date d'expiration par défaut (7 jours)."""
+    return timezone.now() + timedelta(days=7)
+
+
+class CampaignLink(models.Model):
+    """
+    Lien sécurisé et unique permettant d'inviter un candidat à une campagne.
+    - Propre à une `InterviewCampaign`
+    - Porte un token aléatoire unique (URL-safe)
+    - Peut cibler un utilisateur existant (candidate) ou un email libre
+    - Expire automatiquement après `expires_at`
+    - Compte les usages (par défaut usage unique)
+    """
+
+    campaign = models.ForeignKey(
+        InterviewCampaign,
+        on_delete=models.CASCADE,
+        related_name="links",
+        verbose_name="Campagne",
+    )
+    # Si le candidat a déjà un compte sur la plateforme
+    candidate = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="campaign_links",
+        verbose_name="Candidat",
+    )
+    # Sinon on peut cibler directement un email (avant création de compte)
+    email = models.EmailField(null=True, blank=True, verbose_name="Email destinataire")
+
+    token = models.CharField(max_length=64, unique=True, db_index=True, verbose_name="Token")
+    expires_at = models.DateTimeField(default=default_link_expiration, verbose_name="Expire le")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Créé le")
+    used_at = models.DateTimeField(null=True, blank=True, verbose_name="Utilisé le")
+
+    max_uses = models.PositiveIntegerField(default=1, verbose_name="Nombre d'usages autorisés")
+    uses_count = models.PositiveIntegerField(default=0, verbose_name="Nombre d'usages consommés")
+    revoked = models.BooleanField(default=False, verbose_name="Révoqué")
+
+    class Meta:
+        verbose_name = "Lien de campagne"
+        verbose_name_plural = "Liens de campagne"
+        ordering = ["-created_at"]
+        constraints = [
+            models.CheckConstraint(check=models.Q(uses_count__gte=0), name="campaignlink_uses_count_gte_0"),
+            models.CheckConstraint(check=models.Q(max_uses__gte=1), name="campaignlink_max_uses_gte_1"),
+            # Un lien unique par (campagne, candidat) quand le candidat est défini
+            UniqueConstraint(
+                fields=["campaign", "candidate"],
+                condition=Q(candidate__isnull=False),
+                name="unique_link_per_campaign_and_candidate",
+            ),
+            # Un lien unique par (campagne, email) quand l'email est défini
+            UniqueConstraint(
+                fields=["campaign", "email"],
+                condition=Q(email__isnull=False),
+                name="unique_link_per_campaign_and_email",
+            ),
+        ]
+
+    def __str__(self):
+        target = self.candidate.username if self.candidate else (self.email or "(destinataire inconnu)")
+        return f"Lien {self.token[:8]}… pour {self.campaign.title} → {target}"
+
+    @staticmethod
+    def generate_token(length: int = 10) -> str:
+        """Génère un token court et lisible pour l'URL (hexadécimal).
+        Par défaut, 10 caractères hex. Exemple: '3f9d8a2b1c'.
+        Minimum de sécurité: 6 caractères (3 octets) pour limiter les collisions.
+        """
+        length = max(6, int(length))
+        nbytes = (length + 1) // 2  # arrondi supérieur
+        return secrets.token_hex(nbytes)[:length]
+
+    def save(self, *args, **kwargs):
+        if not self.token:
+            # Garantir l'unicité du token en cas de collision improbable
+            candidate_token = self.generate_token()
+            while CampaignLink.objects.filter(token=candidate_token).exists():
+                candidate_token = self.generate_token()
+            self.token = candidate_token
+        super().save(*args, **kwargs)
+
+    @property
+    def is_expired(self) -> bool:
+        return timezone.now() >= self.expires_at
+
+    @property
+    def is_valid(self) -> bool:
+        """Retourne True si le lien peut encore être utilisé."""
+        if self.revoked:
+            return False
+        if self.is_expired:
+            return False
+        if self.uses_count >= self.max_uses:
+            return False
+        return True
+
+    def mark_used(self, commit: bool = True):
+        """Marque le lien comme utilisé (incrémente le compteur et date)."""
+        self.uses_count = (self.uses_count or 0) + 1
+        self.used_at = timezone.now()
+        if commit:
+            self.save(update_fields=["uses_count", "used_at"])
+
+    # Helpers d'URL
+    def get_start_path(self) -> str:
+        """Chemin relatif pour démarrer l'entretien."""
+        return f"/interview/start/{self.token}"
+
+    def get_start_url(self, base_url: str | None = None) -> str:
+        """Construit l'URL absolue. Utilise settings.FRONTEND_BASE_URL si défini.
+        Exemple: https://jobgate.com/interview/start/<token>
+        """
+        base = base_url or getattr(settings, "FRONTEND_BASE_URL", None) or getattr(settings, "SITE_URL", "")
+        return f"{base}{self.get_start_path()}" if base else self.get_start_path()
+
+    @classmethod
+    def get_or_create_for_target(cls, campaign: InterviewCampaign, *, candidate: CustomUser | None = None, email: str | None = None, expires_at=None, max_uses: int = 1):
+        """Récupère (ou crée) un lien unique pour un candidat ou un email donné, dans une campagne."""
+        if not candidate and not email:
+            raise ValueError("Un candidate ou un email doit être fourni")
+        defaults = {
+            "expires_at": expires_at or default_link_expiration(),
+            "max_uses": max_uses,
+        }
+        obj, _created = cls.objects.get_or_create(
+            campaign=campaign,
+            candidate=candidate,
+            email=email,
+            defaults=defaults,
+        )
+        return obj
 
 
 class JobApplication(models.Model):

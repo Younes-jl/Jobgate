@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import JobOffer, InterviewCampaign, InterviewQuestion
+from .models import JobOffer, InterviewCampaign, InterviewQuestion, CampaignLink
 
 class InterviewQuestionInline(admin.TabularInline):
     model = InterviewQuestion
@@ -23,3 +23,13 @@ class InterviewQuestionAdmin(admin.ModelAdmin):
     list_display = ('text', 'campaign', 'time_limit', 'order')
     list_filter = ('campaign', 'time_limit')
     search_fields = ('text', 'campaign__title')
+
+
+@admin.register(CampaignLink)
+class CampaignLinkAdmin(admin.ModelAdmin):
+    list_display = (
+        'campaign', 'candidate', 'email', 'token', 'expires_at', 'uses_count', 'max_uses', 'revoked', 'created_at'
+    )
+    list_filter = ('campaign', 'revoked', 'expires_at', 'created_at')
+    search_fields = ('token', 'campaign__title', 'email', 'candidate__email', 'candidate__username')
+    readonly_fields = ('token', 'created_at', 'used_at', 'uses_count')

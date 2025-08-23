@@ -85,13 +85,7 @@ const JobOfferDetails = () => {
     }
   }, [id, fetchOfferDetails, fetchApplicationStats]);
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('fr-FR', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
+  // (formatDate removed — no longer used after simplifying the layout)
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -157,7 +151,7 @@ const JobOfferDetails = () => {
 
   return (
     <Container fluid className="py-4">
-      {/* En-tête avec navigation */}
+  {/* En-tête avec navigation (affiche uniquement le titre de l'offre) */}
       <Row className="mb-4">
         <Col>
           <div className="d-flex align-items-center justify-content-between">
@@ -171,8 +165,7 @@ const JobOfferDetails = () => {
                 Retour
               </Button>
               <div>
-                <h1 className="h3 mb-1 fw-bold">Détails de l'Offre d'Emploi</h1>
-                <p className="text-muted mb-0">Gestion des candidatures reçues</p>
+        <h1 className="h3 mb-0 fw-bold text-primary">{offerDetails.title}</h1>
               </div>
             </div>
             <div className="d-flex align-items-center gap-2">
@@ -227,59 +220,11 @@ const JobOfferDetails = () => {
         </Col>
       </Row>
 
+  {/* Section détails supprimée à la demande: on garde seulement la liste des candidatures */}
+
+      {/* Liste des candidatures en pleine largeur (occupe tout l'espace) */}
       <Row>
-        {/* Détails de l'offre */}
-        <Col lg={4} className="mb-4">
-          <Card className="dashboard-card h-100 border-0">
-            <Card.Header className="bg-primary text-white">
-              <h5 className="mb-0 fw-bold">
-                <i className="bi bi-briefcase me-2"></i>
-                Informations de l'Offre
-              </h5>
-            </Card.Header>
-            <Card.Body>
-              <div className="mb-3">
-                <h4 className="fw-bold text-primary">{offerDetails.title}</h4>
-                <p className="text-muted mb-2">
-                  <i className="bi bi-geo-alt me-1"></i>
-                  {offerDetails.location || 'Lieu non spécifié'}
-                </p>
-                <p className="text-muted mb-3">
-                  <i className="bi bi-calendar3 me-1"></i>
-                  Publiée le {formatDate(offerDetails.created_at)}
-                </p>
-              </div>
-
-              {offerDetails.description && (
-                <div className="mb-3">
-                  <h6 className="fw-bold">Description</h6>
-                  <p className="text-muted small">
-                    {offerDetails.description.length > 200 
-                      ? `${offerDetails.description.substring(0, 200)}...` 
-                      : offerDetails.description}
-                  </p>
-                </div>
-              )}
-
-              {offerDetails.salary && (
-                <div className="mb-3">
-                  <h6 className="fw-bold">Salaire</h6>
-                  <p className="text-success fw-bold">{offerDetails.salary}</p>
-                </div>
-              )}
-
-              {offerDetails.requirements && (
-                <div className="mb-3">
-                  <h6 className="fw-bold">Exigences</h6>
-                  <p className="text-muted small">{offerDetails.requirements}</p>
-                </div>
-              )}
-            </Card.Body>
-          </Card>
-        </Col>
-
-        {/* Liste des candidatures */}
-        <Col lg={8}>
+        <Col>
           <Card className="dashboard-card border-0">
             <Card.Header className="bg-white">
               <div className="d-flex align-items-center justify-content-between">

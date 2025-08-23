@@ -3,6 +3,7 @@ import { Card, Table, Badge, Button, Form, Row, Col } from 'react-bootstrap';
 import { useParams } from 'react-router-dom';
 import api from '../../services/api';
 import { formatDate } from '../../utils/dateUtils';
+import './RecruiterStyles.css';
 
 const JobApplicationsList = ({ jobOfferId }) => {
   const [applications, setApplications] = useState([]);
@@ -78,6 +79,90 @@ const JobApplicationsList = ({ jobOfferId }) => {
     } catch (err) {
       console.error('Error updating application status:', err);
       alert('Erreur lors de la mise à jour du statut de la candidature.');
+    }
+  };
+
+  // Envoyer une invitation d'entretien différé au candidat
+  const handleInviteCandidate = async (applicationId, candidateName) => {
+    try {
+      const confirmInvitation = window.confirm(
+        `Êtes-vous sûr de vouloir inviter ${candidateName} à l'entretien vidéo différé ?`
+      );
+      if (!confirmInvitation) return;
+
+      // Créer/récupérer un lien unique côté backend
+      const { data } = await api.post(`/interviews/campaign-links/`, {
+        application_id: applicationId,
+      });
+
+      // Envoyer l'invitation par email (backend enverra au candidat)
+      try {
+        await api.post(`/interviews/campaign-links/${data.id}/send_invite/`);
+      } catch (mailErr) {
+        console.error('Erreur lors de l\'envoi de l\'email:', mailErr);
+        // On continue quand même, le lien est généré et copié.
+      }
+
+      // Passer la candidature en "under_review" après l'invitation
+      await handleUpdateStatus(applicationId, 'under_review');
+
+      // Afficher le lien de démarrage et proposer de copier
+  const msg = `Invitation générée et envoyée par email à ${candidateName}.
+Lien: ${data.start_url}
+Expire le: ${new Date(data.expires_at).toLocaleString('fr-FR')}`;
+      if (navigator.clipboard?.writeText) {
+        try { await navigator.clipboard.writeText(data.start_url); } catch { /* noop */ }
+      }
+      alert(msg + "\n(Le lien a été copié dans le presse-papiers si possible.)");
+    } catch (err) {
+      console.error('Error sending invitation:', err);
+      const status = err.response?.status;
+      const detail = err.response?.data?.detail;
+      if (status === 403) return alert("Vous ne pouvez inviter que pour vos propres offres.");
+      if (status === 404) return alert(detail || "Candidature ou token introuvable.");
+      if (status === 400) return alert(detail || "Requête invalide.");
+      alert("Erreur lors de l'envoi de l'invitation. Veuillez réessayer.");
+    }
+  };
+
+  // Affichage visuel du statut d'invitation
+  const getInvitationStatus = (status) => {
+    switch (status) {
+      case 'pending':
+        return (
+          <div className="invitation-status">
+            <i className="bi bi-clock text-warning"></i>
+            <span className="text-muted ms-1">Non invité</span>
+          </div>
+        );
+      case 'under_review':
+        return (
+          <div className="invitation-status">
+            <i className="bi bi-send-check text-success"></i>
+            <span className="text-success ms-1">Invité</span>
+          </div>
+        );
+      case 'accepted':
+        return (
+          <div className="invitation-status">
+            <i className="bi bi-check-circle text-success"></i>
+            <span className="text-success ms-1">Entretien terminé</span>
+          </div>
+        );
+      case 'rejected':
+        return (
+          <div className="invitation-status">
+            <i className="bi bi-x-circle text-danger"></i>
+            <span className="text-danger ms-1">Rejeté</span>
+          </div>
+        );
+      default:
+        return (
+          <div className="invitation-status">
+            <i className="bi bi-question-circle text-secondary"></i>
+            <span className="text-muted ms-1">Inconnu</span>
+          </div>
+        );
     }
   };
 
@@ -164,51 +249,94 @@ const JobApplicationsList = ({ jobOfferId }) => {
         </Row>
         
         {filteredApplications.length > 0 ? (
-          <Table responsive hover className="align-middle shadow-sm">
+          <Table responsive hover className="align-middle shadow-sm applications-table">
             <thead className="bg-light">
               <tr>
                 <th className="py-3">Candidat</th>
                 <th className="py-3">Date de candidature</th>
                 <th className="py-3">Statut</th>
-                <th className="py-3">Actions</th>
+                <th className="py-3">Invitation</th>
+                <th className="py-3 actions-column">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredApplications.map((application) => (
                 <tr key={application.id}>
                   <td>
-                    <div>
-                      <div className="fw-bold">
-                        {application.candidate && (
-                          application.candidate.username || 
-                          (application.candidate.email && application.candidate.email.split('@')[0]) || 
-                          "Candidat"
-                        )}
+                    <div className="candidate-info">
+                      <div className="candidate-avatar">
+                        <i className="bi bi-person-circle text-primary" style={{ fontSize: '1.8rem' }}></i>
                       </div>
-                      <div className="small text-muted">
-                        {application.candidate && application.candidate.email}
+                      <div className="ms-2">
+                        <div className="fw-bold">
+                          {application.candidate && (
+                            application.candidate.username || 
+                            (application.candidate.email && application.candidate.email.split('@')[0]) || 
+                            "Candidat"
+                          )}
+                        </div>
+                        <div className="small text-muted">
+                          {application.candidate && application.candidate.email}
+                        </div>
                       </div>
                     </div>
                   </td>
                   <td>{formatDate(application.created_at)}</td>
                   <td>{getStatusBadge(application.status)}</td>
+                  <td>{getInvitationStatus(application.status)}</td>
                   <td>
-                    <div className="d-flex gap-2">
-                      <Button variant="outline-primary" size="sm" disabled>
-                        <i className="bi bi-eye me-1"></i> Détails désactivés
-                      </Button>
-                      <Form.Select 
-                        size="sm"
-                        style={{ width: '150px' }}
-                        value={application.status}
-                        onChange={(e) => handleUpdateStatus(application.id, e.target.value)}
-                        className="shadow-sm"
-                      >
-                        <option value="pending">En attente</option>
-                        <option value="under_review">En cours d'examen</option>
-                        <option value="accepted">Accepter</option>
-                        <option value="rejected">Rejeter</option>
-                      </Form.Select>
+                    <div className="actions-row">
+                      {/* 1) Ligne des boutons d'action */}
+                      <div className="actions-buttons">
+                        <Button variant="outline-primary" size="sm" disabled>
+                          <i className="bi bi-eye me-1"></i> Détails
+                        </Button>
+
+                        {application.status === 'pending' && (
+                          <Button
+                            className="btn-invite"
+                            size="sm"
+                            onClick={() => handleInviteCandidate(
+                              application.id,
+                              application.candidate?.username || 
+                              (application.candidate?.email && application.candidate.email.split('@')[0]) || 
+                              'ce candidat'
+                            )}
+                          >
+                            <i className="bi bi-send me-1"></i> Inviter
+                          </Button>
+                        )}
+
+                        {application.status === 'under_review' && (
+                          <Button
+                            className="btn-reinvite"
+                            size="sm"
+                            onClick={() => handleInviteCandidate(
+                              application.id,
+                              application.candidate?.username || 
+                              (application.candidate?.email && application.candidate.email.split('@')[0]) || 
+                              'ce candidat'
+                            )}
+                          >
+                            <i className="bi bi-arrow-clockwise me-1"></i> Réinviter
+                          </Button>
+                        )}
+                      </div>
+
+                      {/* 2) Sélecteur du statut */}
+                      <div>
+                        <Form.Select
+                          size="sm"
+                          className="actions-status-select shadow-sm"
+                          value={application.status}
+                          onChange={(e) => handleUpdateStatus(application.id, e.target.value)}
+                        >
+                          <option value="pending">En attente</option>
+                          <option value="under_review">En cours d'examen</option>
+                          <option value="accepted">Accepter</option>
+                          <option value="rejected">Rejeter</option>
+                        </Form.Select>
+                      </div>
                     </div>
                   </td>
                 </tr>

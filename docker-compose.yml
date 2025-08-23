@@ -42,6 +42,14 @@ services:
       - POSTGRES_HOST=db
       # Variable pour signaler que nous sommes en environnement Docker
       - DOCKER_ENVIRONMENT=1
+      # Email via MailHog en développement
+      - EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+      - EMAIL_HOST=mailhog
+      - EMAIL_PORT=1025
+      - EMAIL_USE_TLS=false
+      - EMAIL_USE_SSL=false
+      - DEFAULT_FROM_EMAIL=no-reply@jobgate.local
+      - FRONTEND_BASE_URL=http://localhost:3000
     depends_on:
       db:
         condition: service_healthy
@@ -69,6 +77,13 @@ services:
     depends_on:
       backend:
         condition: service_started
+
+  # MailHog - Capture et visualisation des emails en dev
+  mailhog:
+    image: mailhog/mailhog:latest
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # UI Web
 
 volumes:
   postgres_data:

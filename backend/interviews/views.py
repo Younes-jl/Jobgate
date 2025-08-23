@@ -1,16 +1,20 @@
 from django.core.exceptions import ValidationError
+from django.utils import timezone
+from datetime import timedelta
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
-from .models import JobOffer, InterviewCampaign, InterviewQuestion, JobApplication
+from django.core.mail import send_mail
+from .models import JobOffer, InterviewCampaign, InterviewQuestion, JobApplication, CampaignLink
 from .serializers import (
     JobOfferSerializer, 
     InterviewCampaignSerializer, 
     InterviewCampaignCreateSerializer,
     InterviewQuestionSerializer,
-    JobApplicationSerializer
+    JobApplicationSerializer,
+    CampaignLinkSerializer,
 )
 import logging
 
@@ -283,6 +287,98 @@ class JobApplicationViewSet(viewsets.ModelViewSet):
         applications = JobApplication.objects.filter(candidate=request.user).order_by('-created_at')
         serializer = self.get_serializer(applications, many=True)
         return Response(serializer.data)
+
+
+class CampaignLinkViewSet(viewsets.ViewSet):
+    """Endpoints pour créer/obtenir des liens de campagne et valider les tokens."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def create(self, request):
+        """Créer/obtenir un lien unique pour une candidature.
+        Body attendu: { application_id: number }
+        """
+        application_id = request.data.get('application_id')
+        if not application_id:
+            return Response({"detail": "application_id requis"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            app = JobApplication.objects.select_related('job_offer', 'candidate').get(pk=application_id)
+        except JobApplication.DoesNotExist:
+            return Response({"detail": "Candidature introuvable"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Autorisation: seul le recruteur de l'offre (ou staff)
+        if request.user != app.job_offer.recruiter and not request.user.is_staff:
+            return Response({"detail": "Non autorisé"}, status=status.HTTP_403_FORBIDDEN)
+
+        # Chercher une campagne active pour cette offre
+        campaign = (
+            InterviewCampaign.objects
+            .filter(job_offer=app.job_offer, active=True)
+            .order_by('-start_date')
+            .first()
+        )
+        if not campaign:
+            return Response({"detail": "Aucune campagne active pour cette offre"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Un lien unique par (campaign, candidate)
+        link, _created = CampaignLink.objects.get_or_create(
+            campaign=campaign,
+            candidate=app.candidate,
+            defaults={},
+        )
+
+        # Si le lien n'est pas valide, régénérer avec nouvelle expiration
+        if not link.is_valid:
+            link.revoked = False
+            link.expires_at = timezone.now() + timedelta(days=7)
+            link.token = ''  # force regeneration in save()
+            link.save()
+
+        serializer = CampaignLinkSerializer(link, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def retrieve(self, request, pk=None):
+        """Valider un token: pk est le token."""
+        try:
+            link = CampaignLink.objects.get(token=pk)
+        except CampaignLink.DoesNotExist:
+            return Response({"valid": False, "detail": "Token invalide"}, status=status.HTTP_404_NOT_FOUND)
+
+        data = {
+            "valid": link.is_valid,
+            "expires_at": link.expires_at,
+            "revoked": link.revoked,
+            "uses_count": link.uses_count,
+            "max_uses": link.max_uses,
+            "campaign_id": link.campaign_id,
+            "candidate_id": link.candidate_id,
+        }
+        return Response(data)
+    
+    @action(detail=True, methods=['post'])
+    def send_invite(self, request, pk=None):
+        """Envoie un email d'invitation au candidat pour ce lien."""
+        link = get_object_or_404(CampaignLink, pk=pk)
+        # Autorisation: seul le recruteur de l'offre (ou staff)
+        if request.user != link.campaign.job_offer.recruiter and not request.user.is_staff:
+            return Response({"detail": "Non autorisé"}, status=status.HTTP_403_FORBIDDEN)
+        if not link.is_valid:
+            return Response({"detail": "Lien invalide ou expiré"}, status=status.HTTP_400_BAD_REQUEST)
+        # Déterminer l'email cible
+        to_email = link.email or (link.candidate.email if link.candidate and link.candidate.email else None)
+        if not to_email:
+            return Response({"detail": "Aucun email disponible pour ce candidat"}, status=status.HTTP_400_BAD_REQUEST)
+        subject = f"Invitation à l'entretien: {link.campaign.title}"
+        start_url = link.get_start_url()
+        message = (
+            f"Bonjour,\n\n"
+            f"Vous êtes invité(e) à passer un entretien vidéo pour l'offre '{link.campaign.job_offer.title}'.\n"
+            f"Campagne: {link.campaign.title}\n\n"
+            f"Cliquez sur ce lien pour démarrer: {start_url}\n\n"
+            f"Ce lien expirera le {link.expires_at.strftime('%Y-%m-%d %H:%M')} et est valide {link.max_uses} fois.\n\n"
+            f"Cordialement,\nL'équipe JobGate"
+        )
+        send_mail(subject, message, None, [to_email], fail_silently=False)
+        return Response({"detail": "Invitation envoyée", "email": to_email, "start_url": start_url})
     
     @action(detail=False, methods=['get'])
     def job_applications(self, request):
@@ -293,7 +389,6 @@ class JobApplicationViewSet(viewsets.ModelViewSet):
                 {"detail": "L'ID de l'offre d'emploi est requis."},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
         # Vérifier si l'utilisateur est le recruteur de l'offre
         try:
             job_offer = JobOffer.objects.get(pk=job_offer_id)
@@ -302,13 +397,11 @@ class JobApplicationViewSet(viewsets.ModelViewSet):
                 {"detail": "L'offre d'emploi spécifiée n'existe pas."},
                 status=status.HTTP_404_NOT_FOUND
             )
-        
         if request.user != job_offer.recruiter and not request.user.is_staff:
             return Response(
                 {"detail": "Vous n'êtes pas autorisé à voir les candidatures pour cette offre."},
                 status=status.HTTP_403_FORBIDDEN
             )
-        
         applications = JobApplication.objects.filter(job_offer=job_offer).order_by('-created_at')
-        serializer = self.get_serializer(applications, many=True)
+        serializer = JobApplicationSerializer(applications, many=True)
         return Response(serializer.data)
