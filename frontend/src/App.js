@@ -14,6 +14,7 @@ import CreateOfferWithCampaign from './Components/Recruteur/CreateOfferWithCampa
 import RecruiterJobOfferDetails from './Components/Recruteur/JobOfferDetails';
 import CandidateDashboard from './Components/Candidat/CandidateDashboard';
 import JobOfferDetails from './Components/Candidat/JobOfferDetails';
+import EntretienPage from './Components/Entretien/entretien';
 
 // Importer les styles CSS
 import './Components/Candidat/CandidateStyles.css';
@@ -132,6 +133,9 @@ function App() {
 
                 <div style={{ padding: '20px' }}>
                     <Routes>
+                        {/* Page d'entretien via lien d'invitation (publique) - DOIT ÊTRE EN PREMIER */}
+                        <Route path="/interview/start/:token" element={<EntretienPage />} />
+                        
                         {/* Page d'accueil */}
                         <Route path="/" element={<HomePage />} />
                         

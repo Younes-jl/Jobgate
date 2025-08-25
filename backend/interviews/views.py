@@ -89,6 +89,19 @@ class JobOfferViewSet(viewsets.ModelViewSet):
         logger.error(f'Données validées: {serializer.validated_data}')
         serializer.save(recruiter=self.request.user)
     
+    @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
+    def public_detail(self, request, pk=None):
+        """Endpoint public pour récupérer les détails d'une offre (pour les liens d'entretien)"""
+        try:
+            job_offer = JobOffer.objects.get(pk=pk)
+            serializer = self.get_serializer(job_offer)
+            return Response(serializer.data)
+        except JobOffer.DoesNotExist:
+            return Response(
+                {"detail": "Offre d'emploi introuvable."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+    
     @action(detail=False, methods=['get'])
     def dashboard(self, request):
         user = request.user
@@ -138,6 +151,19 @@ class InterviewCampaignViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f'Erreur inattendue campagne: {str(e)}')
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
+    def public_detail(self, request, pk=None):
+        """Endpoint public pour récupérer les détails d'une campagne (pour les liens d'entretien)"""
+        try:
+            campaign = InterviewCampaign.objects.get(pk=pk)
+            serializer = self.get_serializer(campaign)
+            return Response(serializer.data)
+        except InterviewCampaign.DoesNotExist:
+            return Response(
+                {"detail": "Campagne d'entretien introuvable."},
+                status=status.HTTP_404_NOT_FOUND
+            )
     
     @action(detail=True, methods=['post'])
     def add_question(self, request, pk=None):
@@ -336,8 +362,18 @@ class CampaignLinkViewSet(viewsets.ViewSet):
         serializer = CampaignLinkSerializer(link, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    def get_permissions(self):
+        """
+        Instantiates and returns the list of permissions that this view requires.
+        """
+        if self.action == 'retrieve':
+            permission_classes = [permissions.AllowAny]
+        else:
+            permission_classes = [permissions.IsAuthenticated]
+        return [permission() for permission in permission_classes]
+
     def retrieve(self, request, pk=None):
-        """Valider un token: pk est le token."""
+        """Valider un token: pk est le token. Accès public pour les candidats."""
         try:
             link = CampaignLink.objects.get(token=pk)
         except CampaignLink.DoesNotExist:
