@@ -253,6 +253,7 @@ Expire le: ${new Date(data.expires_at).toLocaleString('fr-FR')}`;
             <thead className="bg-light">
               <tr>
                 <th className="py-3">Candidat</th>
+                 <th className="py-3">Email</th>
                 <th className="py-3">Date de candidature</th>
                 <th className="py-3">Statut</th>
                 <th className="py-3">Invitation</th>
@@ -262,25 +263,8 @@ Expire le: ${new Date(data.expires_at).toLocaleString('fr-FR')}`;
             <tbody>
               {filteredApplications.map((application) => (
                 <tr key={application.id}>
-                  <td>
-                    <div className="candidate-info">
-                      <div className="candidate-avatar">
-                        <i className="bi bi-person-circle text-primary" style={{ fontSize: '1.8rem' }}></i>
-                      </div>
-                      <div className="ms-2">
-                        <div className="fw-bold">
-                          {application.candidate && (
-                            application.candidate.username || 
-                            (application.candidate.email && application.candidate.email.split('@')[0]) || 
-                            "Candidat"
-                          )}
-                        </div>
-                        <div className="small text-muted">
-                          {application.candidate && application.candidate.email}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
+                  <td><strong>{application.candidate.username}</strong></td>
+                  <td>{application.candidate.email}</td>
                   <td>{formatDate(application.created_at)}</td>
                   <td>{getStatusBadge(application.status)}</td>
                   <td>{getInvitationStatus(application.status)}</td>

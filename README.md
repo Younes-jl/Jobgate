@@ -2,6 +2,48 @@
 
 JobGate est une plateforme d'entretiens vidéo qui facilite le processus de recrutement en permettant aux recruteurs de créer des offres d'emploi et aux candidats de postuler. Les candidats peuvent enregistrer des réponses vidéo aux questions prédéfinies, ce qui permet aux recruteurs d'évaluer leurs compétences et leur adéquation au poste.
 
+## Configuration Rapide
+
+### Prérequis
+- Docker et Docker Compose
+- Compte SendGrid (gratuit pour 100 emails/jour)
+
+### Configuration Email avec SendGrid
+
+1. **Créez un compte SendGrid** : [sendgrid.com](https://sendgrid.com)
+2. **Obtenez votre clé API** :
+   - Dashboard SendGrid → `Settings` → `API Keys`
+   - Créez une clé avec permissions d'envoi d'emails
+   - Copiez la clé (format: `SG.xxxxxxxxx`)
+
+3. **Configuration** :
+   ```bash
+   # Copiez et éditez le fichier d'environnement
+   cp backend/.env.example backend/.env
+   # Remplacez SENDGRID_API_KEY par votre vraie clé API
+   ```
+
+### Démarrage
+
+```bash
+# Construction et démarrage
+docker-compose up --build
+
+# Accès :
+# Frontend: http://localhost:3000
+# Backend API: http://localhost:8000
+```
+
+### Test d'envoi d'emails
+
+```bash
+docker exec -it projet-video-interview-jobgate-backend-1 python manage.py shell
+```
+```python
+from django.core.mail import send_mail
+send_mail('Test JobGate', 'Test depuis JobGate', 'JobGate <noreply@jobgate.com>', ['votre@email.com'])
+```
+
 ## Structure du Projet
 
 Le projet utilise une architecture full-stack avec :
