@@ -39,10 +39,23 @@ const EntretienPage = () => {
         setLoading(false);
       } catch (err) {
         console.error('Erreur lors du chargement des données:', err);
+        console.error('Détails de l\'erreur:', {
+          status: err.response?.status,
+          statusText: err.response?.statusText,
+          data: err.response?.data,
+          message: err.message,
+          config: err.config
+        });
+        
         if (err.response?.status === 404) {
           setError('Lien d\'invitation invalide ou introuvable.');
+        } else if (err.response?.status === 403) {
+          setError('Accès non autorisé à ce lien d\'invitation.');
+        } else if (err.response?.status === 401) {
+          setError('Erreur d\'authentification. Le lien pourrait être expiré.');
         } else {
-          setError('Erreur lors du chargement des informations. Veuillez réessayer.');
+          const errorDetail = err.response?.data?.detail || err.message || 'Erreur inconnue';
+          setError(`Erreur lors du chargement des informations: ${errorDetail}. Veuillez réessayer.`);
         }
         setLoading(false);
       }
@@ -123,169 +136,204 @@ const EntretienPage = () => {
   }
 
   return (
-    <Container className="mt-4">
-      <Row className="justify-content-center">
-        <Col md={10}>
-          {/* Header avec informations de l'invitation */}
-          <Card className="mb-4 border-primary">
-            <Card.Header className="bg-primary text-white">
-              <h4 className="mb-0">
-                <i className="bi bi-envelope-open me-2"></i>
-                Invitation à l'entretien vidéo
-              </h4>
-            </Card.Header>
-            <Card.Body>
-              <Row>
-                <Col md={6}>
-                  <p className="mb-2">
-                    <strong>Statut:</strong>{' '}
-                    <Badge bg="success" className="ms-1">
-                      <i className="bi bi-check-circle me-1"></i>
-                      Lien valide
-                    </Badge>
-                  </p>
-                  <p className="mb-2">
-                    <strong>Expire le:</strong>{' '}
-                    <span className="text-muted">
-                      {new Date(linkData?.expires_at).toLocaleString('fr-FR')}
-                    </span>
-                  </p>
-                </Col>
-                <Col md={6}>
-                  <p className="mb-2">
-                    <strong>Utilisations:</strong>{' '}
-                    <span className="text-muted">
-                      {linkData?.uses_count || 0}/{linkData?.max_uses || 1}
-                    </span>
-                  </p>
-                </Col>
-              </Row>
-            </Card.Body>
-          </Card>
+    <div style={{ minHeight: '100vh', backgroundColor: '#f8f9fa' }}>
+      <Container className="py-4">
+        <Row className="justify-content-center">
+          <Col md={10}>
+            {/* Header avec logo/titre simple */}
+            <div className="text-center mb-4">
+              <h2 className="text-primary mb-0">
+                <i className="bi bi-camera-video me-2"></i>
+                Entretien Vidéo JobGate
+              </h2>
+              <hr className="w-50 mx-auto" />
+            </div>
 
-          {/* Informations de la campagne */}
-          <Card className="mb-4">
-            <Card.Header>
-              <h5 className="mb-0">
-                <i className="bi bi-megaphone me-2"></i>
-                Campagne d'entretien
-              </h5>
-            </Card.Header>
-            <Card.Body>
-              <h4 className="text-primary mb-3">{campaignData?.title}</h4>
-              <p className="mb-3">{campaignData?.description}</p>
-              
-              <Row>
-                <Col md={6}>
-                  <p className="mb-2">
-                    <strong>Date de début:</strong>{' '}
-                    <span className="text-muted">
-                      {new Date(campaignData?.start_date).toLocaleDateString('fr-FR')}
-                    </span>
-                  </p>
-                </Col>
-                <Col md={6}>
-                  <p className="mb-2">
-                    <strong>Date de fin:</strong>{' '}
-                    <span className="text-muted">
-                      {new Date(campaignData?.end_date).toLocaleDateString('fr-FR')}
-                    </span>
-                  </p>
-                </Col>
-              </Row>
-
-              {campaignData?.questions && campaignData.questions.length > 0 && (
-                <div className="mt-3">
-                  <p className="mb-2">
-                    <strong>Nombre de questions:</strong>{' '}
-                    <Badge bg="info">{campaignData.questions.length}</Badge>
-                  </p>
-                </div>
-              )}
-            </Card.Body>
-          </Card>
-
-          {/* Informations de l'offre d'emploi */}
-          <Card className="mb-4">
-            <Card.Header>
-              <h5 className="mb-0">
-                <i className="bi bi-briefcase me-2"></i>
-                Offre d'emploi
-              </h5>
-            </Card.Header>
-            <Card.Body>
-              <h4 className="text-success mb-3">{jobOfferData?.title}</h4>
-              <p className="mb-3">{jobOfferData?.description}</p>
-              
-              <Row className="mb-3">
-                <Col md={6}>
-                  <p className="mb-2">
-                    <strong>Lieu:</strong>{' '}
-                    <span className="text-muted">
-                      <i className="bi bi-geo-alt me-1"></i>
-                      {jobOfferData?.location}
-                    </span>
-                  </p>
-                  <p className="mb-2">
-                    <strong>Type de contrat:</strong>{' '}
-                    <Badge bg="secondary">{jobOfferData?.contract_type}</Badge>
-                  </p>
-                </Col>
-                <Col md={6}>
-                  {jobOfferData?.salary && (
-                    <p className="mb-2">
-                      <strong>Salaire:</strong>{' '}
-                      <span className="text-muted">{jobOfferData.salary}</span>
+            {/* Header avec informations de l'invitation */}
+            <Card className="mb-4 border-success shadow-sm">
+              <Card.Header className="bg-success text-white">
+                <h5 className="mb-0">
+                  <i className="bi bi-check-circle me-2"></i>
+                  Invitation Validée
+                </h5>
+              </Card.Header>
+              <Card.Body className="bg-light">
+                <Row className="text-center">
+                  <Col md={4}>
+                    <p className="mb-0">
+                      <strong>Statut:</strong>{' '}
+                      <Badge bg="success">
+                        Lien valide
+                      </Badge>
                     </p>
-                  )}
-                  <p className="mb-2">
-                    <strong>Publié le:</strong>{' '}
-                    <span className="text-muted">
-                      {new Date(jobOfferData?.created_at).toLocaleDateString('fr-FR')}
-                    </span>
-                  </p>
-                </Col>
-              </Row>
+                  </Col>
+                  <Col md={4}>
+                    <p className="mb-0">
+                      <strong>Expire le:</strong>{' '}
+                      <small className="text-muted">
+                        {new Date(linkData?.expires_at).toLocaleString('fr-FR')}
+                      </small>
+                    </p>
+                  </Col>
+                  <Col md={4}>
+                    <p className="mb-0">
+                      <strong>Utilisations:</strong>{' '}
+                      <small className="text-muted">
+                        {linkData?.uses_count || 0}/{linkData?.max_uses || 1}
+                      </small>
+                    </p>
+                  </Col>
+                </Row>
+              </Card.Body>
+            </Card>
 
-              {jobOfferData?.prerequisites && (
-                <div className="mt-3">
-                  <h6>Prérequis:</h6>
-                  <p className="text-muted">{jobOfferData.prerequisites}</p>
+            {/* Informations de la campagne */}
+            <Card className="mb-4 shadow-sm">
+              <Card.Header className="bg-primary text-white">
+                <h5 className="mb-0">
+                  <i className="bi bi-megaphone me-2"></i>
+                  Campagne d'Entretien
+                </h5>
+              </Card.Header>
+              <Card.Body>
+                <h3 className="text-primary mb-3">{campaignData?.title}</h3>
+                <p className="lead mb-4">{campaignData?.description}</p>
+                
+                <Row>
+                  <Col md={4}>
+                    <div className="text-center p-3 bg-light rounded">
+                      <i className="bi bi-calendar-event text-primary fs-4"></i>
+                      <p className="mb-1 mt-2"><strong>Début</strong></p>
+                      <small className="text-muted">
+                        {new Date(campaignData?.start_date).toLocaleDateString('fr-FR')}
+                      </small>
+                    </div>
+                  </Col>
+                  <Col md={4}>
+                    <div className="text-center p-3 bg-light rounded">
+                      <i className="bi bi-calendar-x text-primary fs-4"></i>
+                      <p className="mb-1 mt-2"><strong>Fin</strong></p>
+                      <small className="text-muted">
+                        {new Date(campaignData?.end_date).toLocaleDateString('fr-FR')}
+                      </small>
+                    </div>
+                  </Col>
+                  <Col md={4}>
+                    <div className="text-center p-3 bg-light rounded">
+                      <i className="bi bi-question-circle text-primary fs-4"></i>
+                      <p className="mb-1 mt-2"><strong>Questions</strong></p>
+                      <Badge bg="info" className="fs-6">
+                        {campaignData?.questions?.length || 0}
+                      </Badge>
+                    </div>
+                  </Col>
+                </Row>
+              </Card.Body>
+            </Card>
+
+            {/* Informations de l'offre d'emploi */}
+            <Card className="mb-4 shadow-sm">
+              <Card.Header className="bg-warning text-dark">
+                <h5 className="mb-0">
+                  <i className="bi bi-briefcase me-2"></i>
+                  Offre d'Emploi
+                </h5>
+              </Card.Header>
+              <Card.Body>
+                <h3 className="text-warning mb-3">{jobOfferData?.title}</h3>
+                <p className="mb-4">{jobOfferData?.description}</p>
+                
+                <Row className="mb-3">
+                  <Col md={6}>
+                    <div className="d-flex align-items-center mb-3">
+                      <i className="bi bi-geo-alt text-warning me-2 fs-5"></i>
+                      <div>
+                        <strong>Lieu:</strong>
+                        <p className="mb-0 text-muted">{jobOfferData?.location}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="d-flex align-items-center mb-3">
+                      <i className="bi bi-file-earmark-text text-warning me-2 fs-5"></i>
+                      <div>
+                        <strong>Type de contrat:</strong>
+                        <p className="mb-0">
+                          <Badge bg="secondary">{jobOfferData?.contract_type}</Badge>
+                        </p>
+                      </div>
+                    </div>
+                  </Col>
+                  <Col md={6}>
+                    {jobOfferData?.salary && (
+                      <div className="d-flex align-items-center mb-3">
+                        <i className="bi bi-currency-euro text-warning me-2 fs-5"></i>
+                        <div>
+                          <strong>Salaire:</strong>
+                          <p className="mb-0 text-muted">{jobOfferData.salary}</p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="d-flex align-items-center mb-3">
+                      <i className="bi bi-calendar-plus text-warning me-2 fs-5"></i>
+                      <div>
+                        <strong>Publié le:</strong>
+                        <p className="mb-0 text-muted">
+                          {new Date(jobOfferData?.created_at).toLocaleDateString('fr-FR')}
+                        </p>
+                      </div>
+                    </div>
+                  </Col>
+                </Row>
+
+                {jobOfferData?.prerequisites && (
+                  <div className="mt-4 p-3 bg-light rounded">
+                    <h6 className="text-warning">
+                      <i className="bi bi-list-check me-2"></i>
+                      Prérequis:
+                    </h6>
+                    <p className="mb-0 text-muted">{jobOfferData.prerequisites}</p>
+                  </div>
+                )}
+              </Card.Body>
+            </Card>
+
+            {/* Bouton pour commencer l'entretien */}
+            <Card className="text-center shadow-lg border-0" style={{ backgroundColor: '#e8f5e8' }}>
+              <Card.Body className="py-5">
+                <div className="mb-4">
+                  <i className="bi bi-play-circle text-success" style={{ fontSize: '5rem' }}></i>
                 </div>
-              )}
-            </Card.Body>
-          </Card>
-
-          {/* Bouton pour commencer l'entretien */}
-          <Card className="text-center">
-            <Card.Body>
-              <h5 className="mb-3">Prêt à commencer votre entretien ?</h5>
-              <p className="text-muted mb-4">
-                Cliquez sur le bouton ci-dessous pour démarrer votre entretien vidéo différé.
-                Assurez-vous d'être dans un environnement calme avec une bonne connexion internet.
-              </p>
-              
-              <Button 
-                variant="success" 
-                size="lg"
-                onClick={handleStartInterview}
-                className="px-5"
-              >
-                <i className="bi bi-play-circle me-2"></i>
-                Commencer l'entretien
-              </Button>
-              
-              <div className="mt-3">
-                <small className="text-muted">
-                  <i className="bi bi-info-circle me-1"></i>
-                  Une fois l'entretien commencé, vous ne pourrez plus revenir en arrière.
-                </small>
-              </div>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
-    </Container>
+                <h4 className="text-success mb-3">Prêt à commencer votre entretien ?</h4>
+                <p className="text-muted mb-4 fs-6">
+                  <i className="bi bi-info-circle me-2"></i>
+                  Assurez-vous d'être dans un environnement calme avec une bonne connexion internet.<br/>
+                  Une fois commencé, vous ne pourrez plus revenir en arrière.
+                </p>
+                
+                <Button 
+                  variant="success" 
+                  size="lg"
+                  onClick={handleStartInterview}
+                  className="px-5 py-3 fs-5"
+                  style={{ minWidth: '250px' }}
+                >
+                  <i className="bi bi-camera-video me-3"></i>
+                  Commencer l'Entretien
+                </Button>
+                
+                <div className="mt-4">
+                  <small className="text-muted d-flex align-items-center justify-content-center">
+                    <i className="bi bi-shield-check me-2 text-success"></i>
+                    Votre entretien sera enregistré de manière sécurisée
+                  </small>
+                </div>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+      </Container>
+    </div>
   );
 };
 

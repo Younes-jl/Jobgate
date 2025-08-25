@@ -5,7 +5,7 @@
  * de l'état d'authentification et du rôle de l'utilisateur.
  */
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
 
 // Importer les composants
 import LoginPage from './Components/auth/LoginPage';
@@ -85,13 +85,14 @@ function LogoutButton() {
 }
 
 /**
- * Composant principal App
- * 
- * Configure le routeur et définit les routes de l'application.
- * Gère également l'affichage de la barre de navigation.
+ * Composant pour gérer l'affichage conditionnel de la navbar
  */
-function App() {
+function AppContent() {
     const { user, isTokenChecked } = useAuth();
+    const location = useLocation();
+    
+    // Vérifier si on est sur la page d'entretien
+    const isInterviewPage = location.pathname.startsWith('/interview/start/');
 
     // Si le token n'est pas encore vérifié, on peut afficher un indicateur de chargement
     if (!isTokenChecked) {
@@ -103,35 +104,38 @@ function App() {
     }
 
     return (
-        <Router>
-            <div>
-                <nav style={{ background: '#f0f0f0', padding: '10px', display: 'flex', justifyContent: 'space-between' }}>
-                    <div>
-                        <Link to="/" style={{ marginRight: '15px', fontSize: '18px', fontWeight: 'bold' }}>Application</Link>
-                        {user && user.role === 'RECRUTEUR' && (
-                            <Link to="/dashboard" style={{ marginRight: '15px' }}>Tableau de bord</Link>
-                        )}
-                        {user && user.role === 'CANDIDAT' && (
-                            <Link to="/candidate/dashboard" style={{ marginRight: '15px' }}>Offres d'emploi</Link>
-                        )}
-                    </div>
-                    <div>
-                        {user ? (
-                            // Ce qui est affiché si l'utilisateur est connecté
-                            <>
-                                <span>Bonjour, {user.username} ({user.role})</span>
-                                <LogoutButton />
-                            </>
-                        ) : (
-                            // Ce qui est affiché si l'utilisateur n'est pas connecté
-                            <Link to="/login" style={{ padding: '5px 10px', backgroundColor: '#4CAF50', color: 'white', textDecoration: 'none', borderRadius: '4px' }}>Se Connecter</Link>
-                        )}
-                    </div>
-                </nav>
+        <div>
+            {/* Afficher la navbar seulement si on n'est PAS sur la page d'entretien */}
+            {!isInterviewPage && (
+                <>
+                    <nav style={{ background: '#f0f0f0', padding: '10px', display: 'flex', justifyContent: 'space-between' }}>
+                        <div>
+                            <Link to="/" style={{ marginRight: '15px', fontSize: '18px', fontWeight: 'bold' }}>Application</Link>
+                            {user && user.role === 'RECRUTEUR' && (
+                                <Link to="/dashboard" style={{ marginRight: '15px' }}>Tableau de bord</Link>
+                            )}
+                            {user && user.role === 'CANDIDAT' && (
+                                <Link to="/candidate/dashboard" style={{ marginRight: '15px' }}>Offres d'emploi</Link>
+                            )}
+                        </div>
+                        <div>
+                            {user ? (
+                                // Ce qui est affiché si l'utilisateur est connecté
+                                <>
+                                    <span>Bonjour, {user.username} ({user.role})</span>
+                                    <LogoutButton />
+                                </>
+                            ) : (
+                                // Ce qui est affiché si l'utilisateur n'est pas connecté
+                                <Link to="/login" style={{ padding: '5px 10px', backgroundColor: '#4CAF50', color: 'white', textDecoration: 'none', borderRadius: '4px' }}>Se Connecter</Link>
+                            )}
+                        </div>
+                    </nav>
+                    <hr />
+                </>
+            )}
 
-                <hr />
-
-                <div style={{ padding: '20px' }}>
+            <div style={{ padding: isInterviewPage ? '0' : '20px' }}>
                     <Routes>
                         {/* Page d'entretien via lien d'invitation (publique) - DOIT ÊTRE EN PREMIER */}
                         <Route path="/interview/start/:token" element={<EntretienPage />} />
@@ -189,6 +193,16 @@ function App() {
                     </Routes>
                 </div>
             </div>
+        );
+    }
+
+/**
+ * Composant principal App
+ */
+function App() {
+    return (
+        <Router>
+            <AppContent />
         </Router>
     );
 }

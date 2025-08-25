@@ -64,6 +64,16 @@ class JobOfferViewSet(viewsets.ModelViewSet):
     serializer_class = JobOfferSerializer
     permission_classes = [permissions.IsAuthenticated]
     
+    def get_permissions(self):
+        """
+        Instantiate and return the list of permissions that this view requires.
+        """
+        if self.action == 'public_detail':
+            permission_classes = [permissions.AllowAny]
+        else:
+            permission_classes = [permissions.IsAuthenticated]
+        return [permission() for permission in permission_classes]
+    
     def get_queryset(self):
         user = self.request.user
         if user.is_staff:
@@ -127,6 +137,16 @@ class InterviewCampaignViewSet(viewsets.ModelViewSet):
     ViewSet pour les campagnes d'entretiens.
     """
     permission_classes = [permissions.IsAuthenticated]
+    
+    def get_permissions(self):
+        """
+        Instantiate and return the list of permissions that this view requires.
+        """
+        if self.action == 'public_detail':
+            permission_classes = [permissions.AllowAny]
+        else:
+            permission_classes = [permissions.IsAuthenticated]
+        return [permission() for permission in permission_classes]
     
     def get_serializer_class(self):
         """Utilise un sérialiseur différent pour la création"""
