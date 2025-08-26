@@ -189,3 +189,22 @@ EMAIL_HOST_PASSWORD = os.environ.get('SENDGRID_API_KEY', 'your-sendgrid-api-key-
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'JobGate <noreply@jobgate.com>')
+
+# --- Firebase Configuration ---
+FIREBASE_STORAGE_BUCKET = os.environ.get('FIREBASE_STORAGE_BUCKET', 'your-firebase-bucket-name')
+FIREBASE_CREDENTIALS_PATH = os.environ.get('FIREBASE_CREDENTIALS_PATH', None)
+FIREBASE_CREDENTIALS = os.environ.get('FIREBASE_CREDENTIALS', None)
+
+# --- File Storage Configuration ---
+# Use Firebase Storage for production, local storage for development
+USE_FIREBASE_STORAGE = os.environ.get('USE_FIREBASE_STORAGE', 'False').lower() == 'true'
+
+if USE_FIREBASE_STORAGE:
+    DEFAULT_FILE_STORAGE = 'interviews.firebase_storage.FirebaseStorage'
+    # For media files served through Django (optional fallback)
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+else:
+    # Local storage for development
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = os.path.join(BASE_DIR, 'media')

@@ -7,7 +7,7 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from django.core.mail import send_mail
-from .models import JobOffer, InterviewCampaign, InterviewQuestion, JobApplication, CampaignLink
+from .models import JobOffer, InterviewCampaign, InterviewQuestion, JobApplication, CampaignLink, InterviewAnswer
 from .serializers import (
     JobOfferSerializer, 
     InterviewCampaignSerializer, 
@@ -15,6 +15,7 @@ from .serializers import (
     InterviewQuestionSerializer,
     JobApplicationSerializer,
     CampaignLinkSerializer,
+    InterviewAnswerSerializer,
 )
 import logging
 
@@ -474,4 +475,156 @@ class CampaignLinkViewSet(viewsets.ViewSet):
             )
         applications = JobApplication.objects.filter(job_offer=job_offer).order_by('-created_at')
         serializer = JobApplicationSerializer(applications, many=True)
+        return Response(serializer.data)
+
+
+class InterviewAnswerViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet pour les réponses d'entretien vidéo des candidats.
+    """
+    serializer_class = InterviewAnswerSerializer
+    
+    def get_permissions(self):
+        """
+        Gestion des permissions selon l'action.
+        """
+        if self.action == 'create':
+            # Seuls les candidats authentifiés peuvent soumettre des réponses
+            permission_classes = [permissions.AllowAny]  # Temporaire pour les liens publics
+        else:
+            # Les autres actions nécessitent une authentification
+            permission_classes = [permissions.IsAuthenticated]
+        return [permission() for permission in permission_classes]
+    
+    def get_queryset(self):
+        """
+        Retourne les réponses selon le rôle de l'utilisateur.
+        """
+        user = self.request.user
+        
+        if not user.is_authenticated:
+            return InterviewAnswer.objects.none()
+        
+        if user.is_staff:
+            return InterviewAnswer.objects.all()
+        
+        if hasattr(user, 'role'):
+            if user.role == 'RECRUTEUR':
+                # Les recruteurs voient les réponses pour leurs campagnes
+                return InterviewAnswer.objects.filter(
+                    question__campaign__job_offer__recruiter=user
+                )
+            elif user.role == 'CANDIDAT':
+                # Les candidats ne voient que leurs propres réponses
+                return InterviewAnswer.objects.filter(candidate=user)
+        
+        return InterviewAnswer.objects.none()
+    
+    def create(self, request, *args, **kwargs):
+        """
+        Créer une nouvelle réponse vidéo.
+        Accepte les données multipart/form-data avec le fichier vidéo.
+        """
+        # Vérifier les données requises
+        question_id = request.data.get('question_id')
+        candidate_identifier = request.data.get('candidate_identifier')  # email ou token
+        duration = request.data.get('duration')
+        video_file = request.FILES.get('video_file')
+        
+        if not all([question_id, candidate_identifier, duration, video_file]):
+            return Response({
+                "detail": "Données manquantes. Requis: question_id, candidate_identifier, duration, video_file"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Trouver la question
+        try:
+            question = InterviewQuestion.objects.get(pk=question_id)
+        except InterviewQuestion.DoesNotExist:
+            return Response({
+                "detail": "Question d'entretien introuvable."
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Identifier le candidat (par email du token ou candidat authentifié)
+        candidate = None
+        if request.user.is_authenticated:
+            candidate = request.user
+        else:
+            # Chercher le candidat via le lien de campagne (pour les liens publics)
+            try:
+                link = CampaignLink.objects.get(token=candidate_identifier)
+                if link.candidate:
+                    candidate = link.candidate
+                elif link.email:
+                    # Chercher l'utilisateur par email
+                    try:
+                        candidate = CustomUser.objects.get(email=link.email)
+                    except CustomUser.DoesNotExist:
+                        return Response({
+                            "detail": "Candidat introuvable pour ce lien."
+                        }, status=status.HTTP_404_NOT_FOUND)
+            except CampaignLink.DoesNotExist:
+                return Response({
+                    "detail": "Token d'invitation invalide."
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not candidate:
+            return Response({
+                "detail": "Impossible d'identifier le candidat."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Vérifier si une réponse existe déjà pour cette question/candidat
+        if InterviewAnswer.objects.filter(question=question, candidate=candidate).exists():
+            return Response({
+                "detail": "Une réponse a déjà été soumise pour cette question."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Créer la réponse
+        try:
+            answer = InterviewAnswer.objects.create(
+                question=question,
+                candidate=candidate,
+                video_file=video_file,
+                duration=int(duration),
+                file_size=video_file.size,
+                status='completed'
+            )
+            
+            serializer = self.get_serializer(answer)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de la création de la réponse: {str(e)}")
+            return Response({
+                "detail": f"Erreur lors de la sauvegarde: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def by_campaign(self, request):
+        """
+        Récupère toutes les réponses pour une campagne donnée (pour les recruteurs).
+        """
+        campaign_id = request.query_params.get('campaign_id')
+        if not campaign_id:
+            return Response({
+                "detail": "L'ID de la campagne est requis."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            campaign = InterviewCampaign.objects.get(pk=campaign_id)
+        except InterviewCampaign.DoesNotExist:
+            return Response({
+                "detail": "Campagne introuvable."
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Vérifier si l'utilisateur est le recruteur de cette campagne
+        if request.user != campaign.job_offer.recruiter and not request.user.is_staff:
+            return Response({
+                "detail": "Non autorisé à voir les réponses de cette campagne."
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        answers = InterviewAnswer.objects.filter(
+            question__campaign=campaign
+        ).select_related('candidate', 'question').order_by('-created_at')
+        
+        serializer = self.get_serializer(answers, many=True)
         return Response(serializer.data)

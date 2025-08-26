@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import JobOfferViewSet, InterviewCampaignViewSet, InterviewQuestionViewSet, JobApplicationViewSet, CampaignLinkViewSet
+from .views import JobOfferViewSet, InterviewCampaignViewSet, InterviewQuestionViewSet, JobApplicationViewSet, CampaignLinkViewSet, InterviewAnswerViewSet
 
 router = DefaultRouter()
 router.register(r'offers', JobOfferViewSet, basename='job-offers')
@@ -8,6 +8,7 @@ router.register(r'campaigns', InterviewCampaignViewSet, basename='interview-camp
 router.register(r'questions', InterviewQuestionViewSet, basename='interview-questions')
 router.register(r'applications', JobApplicationViewSet, basename='job-applications')
 router.register(r'campaign-links', CampaignLinkViewSet, basename='campaign-links')
+router.register(r'answers', InterviewAnswerViewSet, basename='interview-answers')
 
 urlpatterns = [
     path('', include(router.urls)),

@@ -44,7 +44,34 @@ from django.core.mail import send_mail
 send_mail('Test JobGate', 'Test depuis JobGate', 'JobGate <noreply@jobgate.com>', ['votre@email.com'])
 ```
 
-## Structure du Projet
+## Stockage des Vidéos
+
+JobGate supporte deux modes de stockage pour les vidéos d'entretien :
+
+### 🔧 Mode Développement (Stockage Local)
+Par défaut, les vidéos sont stockées localement pour faciliter le développement :
+- Configuration simple, aucun service externe requis
+- Fichiers stockés dans `backend/media/interview_answers/`
+- Idéal pour les tests et le développement local
+
+### ☁️ Mode Production (Firebase Storage)
+Pour la production, utilisez Firebase Cloud Storage :
+- ✅ Stockage scalable et sécurisé dans le cloud
+- ✅ URLs signées avec expiration automatique
+- ✅ CDN global pour une diffusion rapide
+- ✅ Interface d'administration intégrée
+- ✅ Gestion automatique des sauvegardes
+
+**Configuration rapide Firebase :**
+```bash
+# Dans votre .env
+USE_FIREBASE_STORAGE=true
+FIREBASE_STORAGE_BUCKET=votre-projet.appspot.com
+FIREBASE_CREDENTIALS={"type":"service_account",...}
+```
+
+📖 **Guide complet** : [FIREBASE_SETUP.md](FIREBASE_SETUP.md)  
+🔥 **Documentation Firebase** : [README_FIREBASE.md](README_FIREBASE.md)
 
 Le projet utilise une architecture full-stack avec :
 

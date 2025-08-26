@@ -1,6 +1,8 @@
 
 from django.contrib import admin
 from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
 from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework.routers import DefaultRouter
 # On importe notre vue personnalisée depuis l'app 'users'
@@ -43,3 +45,7 @@ urlpatterns = [
     # Inclure toutes les URLs générées par le routeur
     path('api/', include(router.urls)),
 ]
+
+# Servir les fichiers média en mode développement local uniquement
+if settings.DEBUG and not getattr(settings, 'USE_FIREBASE_STORAGE', False):
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

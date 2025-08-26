@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import JobOffer, InterviewCampaign, InterviewQuestion, JobApplication, CampaignLink
+from .models import JobOffer, InterviewCampaign, InterviewQuestion, JobApplication, CampaignLink, InterviewAnswer
 from users.models import CustomUser
 from users.serializers import UserSerializer
 
@@ -104,4 +104,60 @@ class JobApplicationSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if request and hasattr(request, 'user'):
             validated_data['candidate'] = request.user
+        return super().create(validated_data)
+
+
+class InterviewAnswerSerializer(serializers.ModelSerializer):
+    """Serializer pour les réponses d'entretien vidéo"""
+    candidate_name = serializers.SerializerMethodField()
+    question_text = serializers.CharField(source='question.text', read_only=True)
+    campaign_title = serializers.CharField(source='question.campaign.title', read_only=True)
+    duration_formatted = serializers.SerializerMethodField()
+    file_size_formatted = serializers.SerializerMethodField()
+    video_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = InterviewAnswer
+        fields = [
+            'id', 'question', 'candidate', 'video_file', 'duration', 'file_size',
+            'status', 'score', 'recruiter_notes', 'created_at', 'updated_at',
+            'candidate_name', 'question_text', 'campaign_title', 
+            'duration_formatted', 'file_size_formatted', 'video_url'
+        ]
+        read_only_fields = [
+            'id', 'created_at', 'updated_at', 'candidate_name', 
+            'question_text', 'campaign_title', 'duration_formatted', 
+            'file_size_formatted', 'video_url'
+        ]
+    
+    def get_candidate_name(self, obj):
+        """Nom complet du candidat"""
+        if obj.candidate.first_name and obj.candidate.last_name:
+            return f"{obj.candidate.first_name} {obj.candidate.last_name}"
+        return obj.candidate.username
+    
+    def get_duration_formatted(self, obj):
+        """Durée formatée (MM:SS)"""
+        return obj.get_duration_formatted()
+    
+    def get_file_size_formatted(self, obj):
+        """Taille du fichier formatée"""
+        return obj.get_file_size_formatted()
+    
+    def get_video_url(self, obj):
+        """URL de téléchargement/visualisation de la vidéo"""
+        return obj.get_video_url()
+    
+    def create(self, validated_data):
+        """Création d'une réponse avec gestion automatique de certains champs"""
+        # S'assurer que le candidat est celui qui est connecté
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            validated_data['candidate'] = request.user
+        
+        # Traiter le fichier vidéo pour extraire des métadonnées
+        video_file = validated_data.get('video_file')
+        if video_file:
+            validated_data['file_size'] = video_file.size
+        
         return super().create(validated_data)

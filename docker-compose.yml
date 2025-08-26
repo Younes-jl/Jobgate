@@ -46,6 +46,11 @@ services:
       - SENDGRID_API_KEY=${SENDGRID_API_KEY}
       - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL:-JobGate <noreply@jobgate.com>}
       - FRONTEND_BASE_URL=${FRONTEND_BASE_URL:-http://localhost:3000}
+      # Configuration Firebase
+      - USE_FIREBASE_STORAGE=${USE_FIREBASE_STORAGE:-false}
+      - FIREBASE_STORAGE_BUCKET=${FIREBASE_STORAGE_BUCKET}
+      - FIREBASE_CREDENTIALS=${FIREBASE_CREDENTIALS}
+      - FIREBASE_CREDENTIALS_PATH=${FIREBASE_CREDENTIALS_PATH}
     depends_on:
       db:
         condition: service_healthy

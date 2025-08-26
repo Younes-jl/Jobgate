@@ -5,6 +5,7 @@ import secrets
 from users.models import CustomUser
 from django.conf import settings
 from django.db.models import Q, UniqueConstraint
+from .firebase_storage import FirebaseStorage, get_firebase_download_url
 
 class JobOffer(models.Model):
     """
@@ -85,6 +86,159 @@ class InterviewQuestion(models.Model):
     
     def __str__(self):
         return f"{self.campaign.title} - Question {self.order}"
+
+
+class InterviewAnswer(models.Model):
+    """
+    Modèle représentant une réponse d'entretien vidéo d'un candidat.
+    Chaque réponse est liée à une question spécifique et à un candidat.
+    """
+    question = models.ForeignKey(
+        InterviewQuestion, 
+        on_delete=models.CASCADE, 
+        related_name="answers", 
+        verbose_name="Question"
+    )
+    candidate = models.ForeignKey(
+        CustomUser, 
+        on_delete=models.CASCADE, 
+        related_name="interview_answers", 
+        verbose_name="Candidat"
+    )
+    
+    # Fichier vidéo de la réponse
+    video_file = models.FileField(
+        upload_to='interview_answers/%Y/%m/%d/', 
+        verbose_name="Fichier vidéo",
+        help_text="Réponse vidéo du candidat",
+        storage=FirebaseStorage() if getattr(settings, 'USE_FIREBASE_STORAGE', False) else None
+    )
+    
+    # Métadonnées de l'enregistrement
+    duration = models.PositiveIntegerField(
+        verbose_name="Durée (secondes)",
+        help_text="Durée de l'enregistrement en secondes"
+    )
+    file_size = models.PositiveIntegerField(
+        verbose_name="Taille du fichier (bytes)",
+        null=True, 
+        blank=True
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Date de création")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Dernière mise à jour")
+    
+    # Statut de la réponse
+    STATUS_CHOICES = [
+        ('pending', 'En attente'),
+        ('processing', 'En cours de traitement'),
+        ('completed', 'Terminée'),
+        ('failed', 'Échec'),
+    ]
+    status = models.CharField(
+        max_length=20, 
+        choices=STATUS_CHOICES, 
+        default='pending', 
+        verbose_name="Statut"
+    )
+    
+    # Notes optionnelles du recruteur
+    recruiter_notes = models.TextField(
+        blank=True, 
+        null=True, 
+        verbose_name="Notes du recruteur"
+    )
+    
+    # Score optionnel (peut être utilisé pour évaluation)
+    score = models.PositiveIntegerField(
+        null=True, 
+        blank=True, 
+        verbose_name="Score",
+        help_text="Score sur 100"
+    )
+    
+    class Meta:
+        verbose_name = "Réponse d'entretien"
+        verbose_name_plural = "Réponses d'entretien"
+        ordering = ['-created_at']
+        # Un candidat ne peut donner qu'une seule réponse par question
+        unique_together = ['question', 'candidate']
+    
+    def __str__(self):
+        return f"Réponse de {self.candidate.username} - {self.question.campaign.title} - Question {self.question.order}"
+    
+    @property
+    def campaign(self):
+        """Accès rapide à la campagne via la question"""
+        return self.question.campaign
+    
+    @property
+    def job_offer(self):
+        """Accès rapide à l'offre d'emploi via la campagne"""
+        return self.question.campaign.job_offer
+    
+    def get_duration_formatted(self):
+        """Retourne la durée formatée (MM:SS)"""
+        minutes = self.duration // 60
+        seconds = self.duration % 60
+        return f"{minutes:02d}:{seconds:02d}"
+    
+    def get_file_size_formatted(self):
+        """Retourne la taille du fichier formatée (MB, KB, etc.)"""
+        if not self.file_size:
+            return "N/A"
+        
+        if self.file_size < 1024:
+            return f"{self.file_size} B"
+        elif self.file_size < 1024 * 1024:
+            return f"{self.file_size / 1024:.1f} KB"
+        elif self.file_size < 1024 * 1024 * 1024:
+            return f"{self.file_size / (1024 * 1024):.1f} MB"
+        else:
+            return f"{self.file_size / (1024 * 1024 * 1024):.1f} GB"
+    
+    def get_video_url(self):
+        """Retourne l'URL de téléchargement/visualisation de la vidéo"""
+        if not self.video_file:
+            return None
+        
+        if getattr(settings, 'USE_FIREBASE_STORAGE', False):
+            # Pour Firebase Storage, générer une URL signée
+            return get_firebase_download_url(self.video_file.name)
+        else:
+            # Pour le stockage local, utiliser l'URL Django standard
+            return self.video_file.url
+    
+    def get_video_streaming_url(self, expiration_hours=1):
+        """Retourne une URL de streaming pour la vidéo avec expiration personnalisée"""
+        if not self.video_file:
+            return None
+        
+        if getattr(settings, 'USE_FIREBASE_STORAGE', False):
+            from datetime import datetime, timedelta
+            from .firebase_storage import initialize_firebase
+            from firebase_admin import storage
+            
+            try:
+                initialize_firebase()
+                bucket = storage.bucket(getattr(settings, 'FIREBASE_STORAGE_BUCKET'))
+                blob = bucket.blob(self.video_file.name)
+                
+                if blob.exists():
+                    return blob.generate_signed_url(
+                        expiration=datetime.utcnow() + timedelta(hours=expiration_hours),
+                        method='GET'
+                    )
+                else:
+                    return None
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Error generating streaming URL for {self.video_file.name}: {e}")
+                return None
+        else:
+            return self.video_file.url if self.video_file else None
 
 
 def default_link_expiration():

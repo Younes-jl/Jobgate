@@ -143,6 +143,7 @@ const EntretienPage = () => {
       if (videoStream) {
         const recorder = new MediaRecorder(videoStream);
         const chunks = [];
+        let startTime = Date.now();
 
         recorder.ondataavailable = (event) => {
           if (event.data.size > 0) {
@@ -150,10 +151,19 @@ const EntretienPage = () => {
           }
         };
 
-        recorder.onstop = () => {
+        recorder.onstop = async () => {
+          const endTime = Date.now();
+          const actualDuration = Math.floor((endTime - startTime) / 1000); // en secondes
           const blob = new Blob(chunks, { type: 'video/webm' });
-          // TODO: Sauvegarder la vidéo ou l'envoyer au serveur
-          console.log('Vidéo enregistrée pour la question', currentQuestionIndex, blob);
+          
+          console.log('Enregistrement terminé:', {
+            duration: actualDuration,
+            size: blob.size,
+            questionIndex: currentQuestionIndex
+          });
+          
+          // Sauvegarder la réponse vidéo
+          await saveVideoAnswer(blob, currentQuestionIndex, actualDuration);
         };
 
         recorder.start();
@@ -172,6 +182,54 @@ const EntretienPage = () => {
       mediaRecorder.stop();
     }
     setIsRecording(false);
+  };
+
+  // Fonction pour sauvegarder la réponse vidéo
+  const saveVideoAnswer = async (videoBlob, questionIndex, duration) => {
+    try {
+      const currentQuestion = questions[questionIndex];
+      
+      // Créer les données du formulaire
+      const formData = new FormData();
+      
+      // Créer un fichier à partir du blob
+      const videoFile = new File([videoBlob], `reponse-q${questionIndex + 1}-${Date.now()}.webm`, {
+        type: 'video/webm'
+      });
+      
+      formData.append('video_file', videoFile);
+      formData.append('question_id', currentQuestion.id);
+      formData.append('candidate_identifier', token); // Utiliser le token de l'invitation
+      formData.append('duration', duration);
+      
+      console.log('Sauvegarde de la réponse vidéo...', {
+        question_id: currentQuestion.id,
+        duration: duration,
+        file_size: videoBlob.size,
+        token: token
+      });
+      
+      // Envoyer au backend
+      const response = await api.post('/interviews/answers/', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      
+      console.log('Réponse sauvegardée avec succès:', response.data);
+      return response.data;
+      
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde de la réponse:', error);
+      console.error('Détails:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
+      
+      // Ne pas bloquer la progression même en cas d'erreur
+      setError('Erreur lors de la sauvegarde de votre réponse. Veuillez réessayer.');
+    }
   };
 
   // Fonction pour passer à la question suivante
@@ -302,25 +360,7 @@ const EntretienPage = () => {
     }
   };
 
-  // Fonction pour démarrer l'enregistrement des réponses
-  const handleStartRecording = async () => {
-    try {
-      // Demander les permissions média pour l'enregistrement
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: true, 
-        audio: true 
-      });
-      
-      setVideoStream(stream);
-      setRecordingStage(true);
-      setCurrentQuestionIndex(0);
-      setCurrentPhase('preparation');
-      setTimeLeft(30); // 30 secondes de préparation
-    } catch (error) {
-      console.error('Erreur lors de l\'accès aux médias:', error);
-      setError('Impossible d\'accéder à la caméra et au microphone. Veuillez autoriser l\'accès pour continuer.');
-    }
-  };
+
 
   if (loading) {
     return (
