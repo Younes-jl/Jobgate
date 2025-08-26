@@ -142,7 +142,7 @@ class InterviewCampaignViewSet(viewsets.ModelViewSet):
         """
         Instantiate and return the list of permissions that this view requires.
         """
-        if self.action == 'public_detail':
+        if self.action in ['public_detail', 'questions']:
             permission_classes = [permissions.AllowAny]
         else:
             permission_classes = [permissions.IsAuthenticated]
@@ -178,6 +178,20 @@ class InterviewCampaignViewSet(viewsets.ModelViewSet):
         try:
             campaign = InterviewCampaign.objects.get(pk=pk)
             serializer = self.get_serializer(campaign)
+            return Response(serializer.data)
+        except InterviewCampaign.DoesNotExist:
+            return Response(
+                {"detail": "Campagne d'entretien introuvable."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+    @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
+    def questions(self, request, pk=None):
+        """Endpoint public pour récupérer les questions d'une campagne (pour les entretiens)"""
+        try:
+            campaign = InterviewCampaign.objects.get(pk=pk)
+            questions = campaign.questions.all().order_by('order')
+            serializer = InterviewQuestionSerializer(questions, many=True)
             return Response(serializer.data)
         except InterviewCampaign.DoesNotExist:
             return Response(

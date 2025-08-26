@@ -12,10 +12,20 @@ const EntretienPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [interviewStarted, setInterviewStarted] = useState(false);
+  const [questions, setQuestions] = useState([]);
+  const [questionsLoading, setQuestionsLoading] = useState(false);
   const [setupStage, setSetupStage] = useState(false); // Nouvelle étape de vérification
   const [cameraPermission, setCameraPermission] = useState(false);
   const [microphonePermission, setMicrophonePermission] = useState(false);
   const [videoStream, setVideoStream] = useState(null);
+  
+  // États pour l'interface d'enregistrement des réponses
+  const [recordingStage, setRecordingStage] = useState(false);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [currentPhase, setCurrentPhase] = useState('preparation'); // 'preparation', 'recording', 'finished'
+  const [timeLeft, setTimeLeft] = useState(30);
+  const [mediaRecorder, setMediaRecorder] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
 
   // Fonction pour formater la description de l'offre
   const formatJobDescription = (description) => {
@@ -95,6 +105,92 @@ const EntretienPage = () => {
     }
   }, [token]);
 
+  // Timer pour la préparation et l'enregistrement
+  useEffect(() => {
+    let timer;
+    
+    if (recordingStage && !interviewStarted) {
+      if (currentPhase === 'preparation' && timeLeft > 0) {
+        timer = setTimeout(() => {
+          setTimeLeft(prev => prev - 1);
+        }, 1000);
+      } else if (currentPhase === 'preparation' && timeLeft === 0) {
+        // Fin de la préparation, démarrer l'enregistrement
+        setCurrentPhase('recording');
+        setTimeLeft(questions[currentQuestionIndex]?.time_limit || 180); // Temps d'enregistrement
+        startRecording();
+      } else if (currentPhase === 'recording' && timeLeft > 0) {
+        timer = setTimeout(() => {
+          setTimeLeft(prev => prev - 1);
+        }, 1000);
+      } else if (currentPhase === 'recording' && timeLeft === 0) {
+        // Fin de l'enregistrement, passer à la question suivante
+        stopRecording();
+        nextQuestion();
+      }
+    }
+
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+    
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recordingStage, currentPhase, timeLeft, currentQuestionIndex, questions, interviewStarted]);
+
+  // Fonction pour démarrer l'enregistrement
+  const startRecording = async () => {
+    try {
+      if (videoStream) {
+        const recorder = new MediaRecorder(videoStream);
+        const chunks = [];
+
+        recorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            chunks.push(event.data);
+          }
+        };
+
+        recorder.onstop = () => {
+          const blob = new Blob(chunks, { type: 'video/webm' });
+          // TODO: Sauvegarder la vidéo ou l'envoyer au serveur
+          console.log('Vidéo enregistrée pour la question', currentQuestionIndex, blob);
+        };
+
+        recorder.start();
+        setMediaRecorder(recorder);
+        setIsRecording(true);
+      }
+    } catch (error) {
+      console.error('Erreur lors du démarrage de l\'enregistrement:', error);
+      setError('Erreur lors du démarrage de l\'enregistrement.');
+    }
+  };
+
+  // Fonction pour arrêter l'enregistrement
+  const stopRecording = () => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+    }
+    setIsRecording(false);
+  };
+
+  // Fonction pour passer à la question suivante
+  const nextQuestion = () => {
+    if (currentQuestionIndex < questions.length - 1) {
+      setCurrentQuestionIndex(prev => prev + 1);
+      setCurrentPhase('preparation');
+      setTimeLeft(30); // 30 secondes de préparation
+    } else {
+      // Fin de l'entretien - fermer la caméra et afficher message de fin
+      if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
+      }
+      setVideoStream(null);
+      setRecordingStage(false);
+      setInterviewStarted(true); // Afficher le message de fin
+    }
+  };
+
   const handleStartInterview = () => {
     // Passer à l'étape de vérification du micro et de la caméra
     setSetupStage(true);
@@ -127,13 +223,103 @@ const EntretienPage = () => {
   };
 
   // Fonction pour démarrer l'entretien après vérification
-  const handleStartInterviewFinal = () => {
-    // Arrêter le stream de test
-    if (videoStream) {
-      videoStream.getTracks().forEach(track => track.stop());
+  const handleStartInterviewFinal = async () => {
+    console.log('=== DEBUT handleStartInterviewFinal ===');
+    console.log('État initial:', {
+      recordingStage,
+      interviewStarted,
+      setupStage,
+      questionsLoading,
+      campaignData: campaignData?.id
+    });
+    
+    try {
+      // Arrêter le stream de test
+      if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
+      }
+      
+      // Commencer le chargement des questions
+      setQuestionsLoading(true);
+      console.log('Chargement des questions commencé...');
+      
+      // Récupérer les questions de la campagne
+      const questionsResponse = await api.get(`/interviews/campaigns/${campaignData.id}/questions/`);
+      console.log('Questions récupérées:', questionsResponse.data);
+      setQuestions(questionsResponse.data);
+      
+      // Arrêter le loading avant de continuer
+      setQuestionsLoading(false);
+      
+      // Au lieu de juste setInterviewStarted(true), aller directement à l'interface d'enregistrement
+      if (questionsResponse.data && questionsResponse.data.length > 0) {
+        console.log('Questions trouvées, activation de l\'enregistrement...');
+        
+        // Demander les permissions média pour l'enregistrement
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: true, 
+          audio: true 
+        });
+        
+        console.log('Permissions média accordées');
+        setVideoStream(stream);
+        
+        // S'assurer qu'interviewStarted est false pour que l'interface d'enregistrement s'affiche
+        console.log('Mise à jour des états...');
+        setSetupStage(false); // IMPORTANT: Sortir de l'étape de vérification
+        setInterviewStarted(false);
+        setRecordingStage(true);
+        setCurrentQuestionIndex(0);
+        setCurrentPhase('preparation');
+        setTimeLeft(30); // 30 secondes de préparation
+        
+        console.log('=== ETATS APRES MISE A JOUR ===');
+        console.log('recordingStage: true, interviewStarted: false');
+        console.log('=== FIN handleStartInterviewFinal ===');
+      } else {
+        console.log('Aucune question trouvée, fallback vers interviewStarted');
+        setInterviewStarted(true); // Fallback si pas de questions
+      }
+    } catch (error) {
+      console.error('=== ERREUR dans handleStartInterviewFinal ===');
+      console.error('Erreur lors du chargement des questions:', error);
+      console.error('Détails de l\'erreur:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message
+      });
+      
+      if (error.response?.status === 404) {
+        setError('Campagne d\'entretien introuvable ou aucune question configurée.');
+      } else if (error.response?.status === 403) {
+        setError('Accès non autorisé aux questions d\'entretien.');
+      } else {
+        const errorDetail = error.response?.data?.detail || error.message || 'Erreur inconnue';
+        setError(`Erreur lors du chargement des questions: ${errorDetail}`);
+      }
+      setQuestionsLoading(false);
     }
-    // Marquer l'entretien comme commencé
-    setInterviewStarted(true);
+  };
+
+  // Fonction pour démarrer l'enregistrement des réponses
+  const handleStartRecording = async () => {
+    try {
+      // Demander les permissions média pour l'enregistrement
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: true, 
+        audio: true 
+      });
+      
+      setVideoStream(stream);
+      setRecordingStage(true);
+      setCurrentQuestionIndex(0);
+      setCurrentPhase('preparation');
+      setTimeLeft(30); // 30 secondes de préparation
+    } catch (error) {
+      console.error('Erreur lors de l\'accès aux médias:', error);
+      setError('Impossible d\'accéder à la caméra et au microphone. Veuillez autoriser l\'accès pour continuer.');
+    }
   };
 
   if (loading) {
@@ -170,6 +356,9 @@ const EntretienPage = () => {
 
   // Étape de vérification du micro et de la caméra
   if (setupStage && !interviewStarted) {
+    console.log('=== RENDU: Interface de vérification technique ===');
+    console.log('setupStage:', setupStage, 'interviewStarted:', interviewStarted);
+    
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#f8f9fa' }}>
         <Container className="py-4">
@@ -275,21 +464,21 @@ const EntretienPage = () => {
                         size="lg"
                         onClick={handleStartInterviewFinal}
                         className="px-4"
+                        disabled={questionsLoading}
                       >
-                        <i className="bi bi-play-circle me-2"></i>
-                        Je suis prêt à commencer !
+                        {questionsLoading ? (
+                          <>
+                            <Spinner animation="border" size="sm" className="me-2" />
+                            Chargement...
+                          </>
+                        ) : (
+                          <>
+                            <i className="bi bi-play-circle me-2"></i>
+                            Je suis prêt à commencer !
+                          </>
+                        )}
                       </Button>
                     )}
-                    
-                    <Button
-                      variant="outline-secondary"
-                      size="lg"
-                      onClick={() => setSetupStage(false)}
-                      className="px-4"
-                    >
-                      <i className="bi bi-arrow-left me-2"></i>
-                      Retour
-                    </Button>
                   </div>
 
                   {(cameraPermission && microphonePermission) && (
@@ -333,29 +522,312 @@ const EntretienPage = () => {
     );
   }
 
-  // Interface de finalisation après avoir commencé l'entretien
-  if (interviewStarted) {
+  // Interface d'enregistrement des réponses
+  if (recordingStage && !interviewStarted) {
+    console.log('=== RENDU: Interface d\'enregistrement ===');
+    console.log('recordingStage:', recordingStage, 'interviewStarted:', interviewStarted);
+    
+    const currentQuestion = questions[currentQuestionIndex];
+    
     return (
-      <Container className="mt-5">
-        <Row className="justify-content-center">
-          <Col md={8}>
-            <Card className="text-center">
-              <Card.Body>
-                <div className="mb-4">
-                  <i className="bi bi-camera-video text-success" style={{ fontSize: '4rem' }}></i>
+      <div style={{ minHeight: '100vh', backgroundColor: '#f8f9fa' }}>
+        <Container fluid className="py-3">
+          <Row>
+            {/* Colonne principale - Question et contrôles */}
+            <Col lg={8}>
+              <div className="text-center mb-4">
+                <h3 className="text-primary">Répondez à la question</h3>
+                <div className="d-flex justify-content-center align-items-center mt-2">
+                  <Badge bg="primary" className="me-2">
+                    Question {currentQuestionIndex + 1}/{questions.length}
+                  </Badge>
+                  <small className="text-muted">
+                    {campaignData?.title}
+                  </small>
                 </div>
-                <Card.Title>Entretien Terminé</Card.Title>
-                <Card.Text>
-                  Merci d'avoir passé l'entretien pour <strong>{campaignData?.title}</strong>.
-                </Card.Text>
-                <Card.Text className="text-muted">
-                  Vos réponses ont été enregistrées avec succès.
-                </Card.Text>
-              </Card.Body>
-            </Card>
-          </Col>
-        </Row>
-      </Container>
+              </div>
+
+              {/* Zone vidéo principale */}
+              <Card className="mb-3 shadow">
+                <Card.Body className="p-0">
+                  <div 
+                    className="position-relative d-flex align-items-center justify-content-center"
+                    style={{ 
+                      height: '400px',
+                      backgroundColor: '#e8f4fd',
+                      borderRadius: '8px'
+                    }}
+                  >
+                    {isRecording && (
+                      <Badge 
+                        bg="danger" 
+                        className="position-absolute top-0 start-0 m-3 px-3 py-2"
+                        style={{ fontSize: '0.9rem', zIndex: 10 }}
+                      >
+                        <i className="bi bi-record-circle me-1"></i>
+                        REC
+                      </Badge>
+                    )}
+                    
+                    <video
+                      ref={(video) => {
+                        if (video && videoStream) {
+                          video.srcObject = videoStream;
+                        }
+                      }}
+                      autoPlay
+                      muted
+                      className="w-100 h-100"
+                      style={{
+                        objectFit: 'cover',
+                        borderRadius: '8px',
+                        transform: 'scaleX(-1)'
+                      }}
+                    />
+                    
+                    {!videoStream && (
+                      <div className="text-center">
+                        <i className="bi bi-camera-video text-primary" style={{ fontSize: '4rem' }}></i>
+                        <p className="mt-2 text-muted">Simulation de la caméra</p>
+                        <p className="text-muted">Dans un vrai scénario, votre vidéo apparaîtrait ici</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Indicateurs audio/vidéo */}
+                  <div className="d-flex justify-content-center py-2">
+                    <div className="d-flex align-items-center me-4">
+                      <div className="me-2" style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#28a745' }}></div>
+                      <small className="text-muted">Audio détecté</small>
+                    </div>
+                    <div className="d-flex align-items-center">
+                      <div className="me-2" style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#007bff' }}></div>
+                      <small className="text-muted">Vidéo active</small>
+                    </div>
+                  </div>
+                </Card.Body>
+              </Card>
+
+              {/* Bouton d'arrêt (optionnel) */}
+              {currentPhase === 'recording' && (
+                <div className="text-center">
+                  <Button 
+                    variant="danger" 
+                    className="px-4"
+                    onClick={() => {
+                      stopRecording();
+                      nextQuestion();
+                    }}
+                  >
+                    <i className="bi bi-stop-circle me-2"></i>
+                    Arrêter l'enregistrement
+                  </Button>
+                </div>
+              )}
+            </Col>
+
+            {/* Colonne droite - Question et timer */}
+            <Col lg={4}>
+              <Card className="mb-3">
+                <Card.Header className="bg-primary text-white">
+                  <h6 className="mb-0">
+                    <i className="bi bi-question-circle me-2"></i>
+                    Question
+                  </h6>
+                </Card.Header>
+                <Card.Body>
+                  <p className="fw-bold">{currentQuestion?.text}</p>
+                </Card.Body>
+              </Card>
+
+              {/* Timer */}
+              <Card className="mb-3">
+                <Card.Body className="text-center">
+                  <div 
+                    className="display-4 fw-bold mb-2"
+                    style={{ 
+                      color: currentPhase === 'preparation' ? '#ffc107' : '#dc3545',
+                      fontSize: '3rem'
+                    }}
+                  >
+                    {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+                  </div>
+                  
+                  {/* Barre de progression */}
+                  <div className="progress mb-3" style={{ height: '8px' }}>
+                    <div 
+                      className={`progress-bar ${currentPhase === 'preparation' ? 'bg-warning' : 'bg-danger'}`}
+                      style={{ 
+                        width: `${currentPhase === 'preparation' 
+                          ? ((30 - timeLeft) / 30) * 100 
+                          : ((questions[currentQuestionIndex]?.time_limit - timeLeft) / questions[currentQuestionIndex]?.time_limit) * 100}%` 
+                      }}
+                    ></div>
+                  </div>
+                  
+                  <div className="text-center">
+                    {currentPhase === 'preparation' ? (
+                      <div>
+                        <h6 className="text-warning">Temps de préparation</h6>
+                        <small className="text-muted">
+                          Prenez le temps de réfléchir à votre réponse.<br/>
+                          L'enregistrement commencera automatiquement.
+                        </small>
+                      </div>
+                    ) : (
+                      <div>
+                        <h6 className="text-danger">Temps d'enregistrement</h6>
+                        <small className="text-muted">
+                          <i className="bi bi-info-circle me-1"></i>
+                          Passage automatique à la fin du temps
+                        </small>
+                      </div>
+                    )}
+                  </div>
+                </Card.Body>
+              </Card>
+
+              {/* Conseils pendant l'enregistrement */}
+              <Card className="border-info">
+                <Card.Header className="bg-info text-white">
+                  <h6 className="mb-0">
+                    <i className="bi bi-lightbulb me-2"></i>
+                    Pendant l'enregistrement
+                  </h6>
+                </Card.Header>
+                <Card.Body>
+                  <ul className="list-unstyled mb-0 small">
+                    <li className="mb-2">
+                      <i className="bi bi-eye text-primary me-2"></i>
+                      Regardez la caméra
+                    </li>
+                    <li className="mb-2">
+                      <i className="bi bi-mic text-success me-2"></i>
+                      Parlez distinctement
+                    </li>
+                    <li className="mb-2">
+                      <i className="bi bi-person-check text-info me-2"></i>
+                      Restez naturel(le)
+                    </li>
+                    <li className="mb-0">
+                      <i className="bi bi-clock text-warning me-2"></i>
+                      Prenez votre temps
+                    </li>
+                  </ul>
+                </Card.Body>
+              </Card>
+            </Col>
+          </Row>
+        </Container>
+      </div>
+    );
+  }
+
+  // Interface de finalisation après avoir terminé l'entretien
+  if (interviewStarted) {
+    console.log('=== RENDU: Interface de finalisation ===');
+    console.log('interviewStarted:', interviewStarted);
+    
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: '#f8f9fa' }}>
+        <Container className="py-4">
+          <Row className="justify-content-center">
+            <Col md={8}>
+              {/* Message de fin d'entretien */}
+              <div className="text-center mb-4">
+                <div className="mb-4">
+                  <i className="bi bi-check-circle-fill text-success" style={{ fontSize: '5rem' }}></i>
+                </div>
+                <h2 className="text-success mb-3">
+                  Félicitations !
+                </h2>
+                <h4 className="text-muted mb-4">
+                  Vous avez terminé votre entretien vidéo
+                </h4>
+                <hr className="w-50 mx-auto mb-4" />
+              </div>
+
+              {/* Informations sur l'entretien terminé */}
+              <Card className="mb-4 shadow">
+                <Card.Header className="bg-success text-white">
+                  <h5 className="mb-0">
+                    <i className="bi bi-clipboard-check me-2"></i>
+                    Récapitulatif de votre entretien
+                  </h5>
+                </Card.Header>
+                <Card.Body>
+                  <Row>
+                    <Col md={6}>
+                      <div className="mb-3">
+                        <strong>Campagne :</strong>
+                        <p className="text-muted mb-0">{campaignData?.title}</p>
+                      </div>
+                      <div className="mb-3">
+                        <strong>Poste :</strong>
+                        <p className="text-muted mb-0">{jobOfferData?.title}</p>
+                      </div>
+                    </Col>
+                    <Col md={6}>
+                      <div className="mb-3">
+                        <strong>Questions traitées :</strong>
+                        <p className="text-muted mb-0">{questions?.length || 0} question(s)</p>
+                      </div>
+                      <div className="mb-3">
+                        <strong>Date d'entretien :</strong>
+                        <p className="text-muted mb-0">{new Date().toLocaleDateString('fr-FR')}</p>
+                      </div>
+                    </Col>
+                  </Row>
+                </Card.Body>
+              </Card>
+
+              {/* Prochaines étapes */}
+              <Card className="mb-4 border-info">
+                <Card.Header className="bg-info text-white">
+                  <h6 className="mb-0">
+                    <i className="bi bi-arrow-right-circle me-2"></i>
+                    Prochaines étapes
+                  </h6>
+                </Card.Header>
+                <Card.Body>
+                  <ul className="list-unstyled mb-0">
+                    <li className="mb-2">
+                      <i className="bi bi-check text-success me-2"></i>
+                      Votre entretien vidéo a été enregistré avec succès
+                    </li>
+                    <li className="mb-2">
+                      <i className="bi bi-eye text-info me-2"></i>
+                      Le recruteur examinera vos réponses sous peu
+                    </li>
+                    <li className="mb-2">
+                      <i className="bi bi-envelope text-warning me-2"></i>
+                      Vous recevrez une notification par email sur la suite du processus
+                    </li>
+                    <li className="mb-0">
+                      <i className="bi bi-telephone text-primary me-2"></i>
+                      En cas de questions, n'hésitez pas à contacter le recruteur
+                    </li>
+                  </ul>
+                </Card.Body>
+              </Card>
+
+              {/* Message de remerciement */}
+              <Card className="text-center border-0" style={{ backgroundColor: '#e8f5e8' }}>
+                <Card.Body className="py-4">
+                  <h5 className="text-success mb-3">
+                    <i className="bi bi-heart-fill me-2"></i>
+                    Merci pour votre participation !
+                  </h5>
+                  <p className="text-muted mb-0">
+                    Nous apprécions le temps que vous avez consacré à cet entretien.<br/>
+                    Bonne chance pour la suite du processus de recrutement !
+                  </p>
+                </Card.Body>
+              </Card>
+            </Col>
+          </Row>
+        </Container>
+      </div>
     );
   }
 
