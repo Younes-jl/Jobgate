@@ -14,7 +14,8 @@ import CreateOfferWithCampaign from './Components/Recruteur/CreateOfferWithCampa
 import RecruiterJobOfferDetails from './Components/Recruteur/JobOfferDetails';
 import CandidateDashboard from './Components/Candidat/CandidateDashboard';
 import JobOfferDetails from './Components/Candidat/JobOfferDetails';
-import EntretienPage from './Components/Entretien/entretien';
+import EntretienPage from './Components/Entretien/entretienDetails';
+
 
 // Importer les styles CSS
 import './Components/Candidat/CandidateStyles.css';
@@ -92,7 +93,7 @@ function AppContent() {
     const location = useLocation();
     
     // Vérifier si on est sur la page d'entretien
-    const isInterviewPage = location.pathname.startsWith('/interview/start/');
+    const isInterviewPage = location.pathname.startsWith('/interview/');
 
     // Si le token n'est pas encore vérifié, on peut afficher un indicateur de chargement
     if (!isTokenChecked) {
@@ -139,6 +140,8 @@ function AppContent() {
                     <Routes>
                         {/* Page d'entretien via lien d'invitation (publique) - DOIT ÊTRE EN PREMIER */}
                         <Route path="/interview/start/:token" element={<EntretienPage />} />
+                        
+              
                         
                         {/* Page d'accueil */}
                         <Route path="/" element={<HomePage />} />
