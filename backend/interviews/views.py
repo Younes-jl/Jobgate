@@ -7,6 +7,7 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from django.core.mail import send_mail
+from users.models import CustomUser
 from .models import JobOffer, InterviewCampaign, InterviewQuestion, JobApplication, CampaignLink, InterviewAnswer
 from .serializers import (
     JobOfferSerializer, 
@@ -525,78 +526,131 @@ class InterviewAnswerViewSet(viewsets.ModelViewSet):
         Créer une nouvelle réponse vidéo.
         Accepte les données multipart/form-data avec le fichier vidéo.
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info(f"📹 Tentative de sauvegarde de réponse vidéo")
+        logger.info(f"Données reçues: {list(request.data.keys())}")
+        logger.info(f"Fichiers reçus: {list(request.FILES.keys())}")
+        logger.info(f"Utilisateur: {request.user} (authentifié: {request.user.is_authenticated})")
+        
         # Vérifier les données requises
         question_id = request.data.get('question_id')
         candidate_identifier = request.data.get('candidate_identifier')  # email ou token
         duration = request.data.get('duration')
         video_file = request.FILES.get('video_file')
         
+        logger.info(f"question_id: {question_id}")
+        logger.info(f"candidate_identifier: {candidate_identifier}")
+        logger.info(f"duration: {duration}")
+        logger.info(f"video_file: {video_file}")
+        
         if not all([question_id, candidate_identifier, duration, video_file]):
+            missing = []
+            if not question_id: missing.append("question_id")
+            if not candidate_identifier: missing.append("candidate_identifier") 
+            if not duration: missing.append("duration")
+            if not video_file: missing.append("video_file")
+            
+            logger.error(f"❌ Données manquantes: {missing}")
             return Response({
-                "detail": "Données manquantes. Requis: question_id, candidate_identifier, duration, video_file"
+                "detail": f"Données manquantes. Requis: {', '.join(missing)}"
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Trouver la question
         try:
             question = InterviewQuestion.objects.get(pk=question_id)
+            logger.info(f"✅ Question trouvée: {question.text[:50]}...")
         except InterviewQuestion.DoesNotExist:
+            logger.error(f"❌ Question introuvable: {question_id}")
             return Response({
                 "detail": "Question d'entretien introuvable."
             }, status=status.HTTP_404_NOT_FOUND)
-        
-        # Identifier le candidat (par email du token ou candidat authentifié)
+
+        # Identifier le candidat (TOUJOURS via le token pour les réponses vidéo)
         candidate = None
-        if request.user.is_authenticated:
-            candidate = request.user
-        else:
-            # Chercher le candidat via le lien de campagne (pour les liens publics)
-            try:
-                link = CampaignLink.objects.get(token=candidate_identifier)
-                if link.candidate:
-                    candidate = link.candidate
-                elif link.email:
-                    # Chercher l'utilisateur par email
-                    try:
-                        candidate = CustomUser.objects.get(email=link.email)
-                    except CustomUser.DoesNotExist:
-                        return Response({
-                            "detail": "Candidat introuvable pour ce lien."
-                        }, status=status.HTTP_404_NOT_FOUND)
-            except CampaignLink.DoesNotExist:
-                return Response({
-                    "detail": "Token d'invitation invalide."
-                }, status=status.HTTP_400_BAD_REQUEST)
+        logger.info(f"🔍 Identification du candidat via token...")
+        
+        # Pour les réponses d'entretien vidéo, on utilise TOUJOURS le token
+        # même si un utilisateur est authentifié (évite que le recruteur se stocke comme candidat)
+        logger.info(f"🔗 Recherche via token/lien: {candidate_identifier}")
+        try:
+            link = CampaignLink.objects.get(token=candidate_identifier)
+            logger.info(f"✅ Lien trouvé - Email: {link.email}, Candidat: {link.candidate}")
+            
+            if link.candidate:
+                candidate = link.candidate
+                logger.info(f"✅ Candidat via lien: {candidate.email}")
+            elif link.email:
+                # Chercher l'utilisateur par email
+                try:
+                    candidate = CustomUser.objects.get(email=link.email)
+                    logger.info(f"✅ Candidat trouvé par email: {candidate.email}")
+                except CustomUser.DoesNotExist:
+                    logger.error(f"❌ Candidat introuvable pour email: {link.email}")
+                    return Response({
+                        "detail": "Candidat introuvable pour ce lien."
+                    }, status=status.HTTP_404_NOT_FOUND)
+        except CampaignLink.DoesNotExist:
+            logger.error(f"❌ Token d'invitation invalide: {candidate_identifier}")
+            return Response({
+                "detail": "Token d'invitation invalide."
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         if not candidate:
+            logger.error(f"❌ Impossible d'identifier le candidat")
             return Response({
                 "detail": "Impossible d'identifier le candidat."
             }, status=status.HTTP_400_BAD_REQUEST)
-        
+
+        logger.info(f"✅ Candidat identifié: {candidate.email} (ID: {candidate.id})")
+
         # Vérifier si une réponse existe déjà pour cette question/candidat
-        if InterviewAnswer.objects.filter(question=question, candidate=candidate).exists():
-            return Response({
-                "detail": "Une réponse a déjà été soumise pour cette question."
-            }, status=status.HTTP_400_BAD_REQUEST)
+        existing_answer = InterviewAnswer.objects.filter(question=question, candidate=candidate).first()
         
-        # Créer la réponse
-        try:
-            answer = InterviewAnswer.objects.create(
-                question=question,
-                candidate=candidate,
-                video_file=video_file,
-                duration=int(duration),
-                file_size=video_file.size,
-                status='completed'
-            )
+        if existing_answer:
+            logger.warning(f"⚠️ Réponse déjà existante pour question {question_id} et candidat {candidate.id}")
+            logger.info(f"🔄 Mise à jour de la réponse existante (ID: {existing_answer.id})")
             
-            serializer = self.get_serializer(answer)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-            
-        except Exception as e:
-            logger.error(f"Erreur lors de la création de la réponse: {str(e)}")
-            return Response({
-                "detail": f"Erreur lors de la sauvegarde: {str(e)}"
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            # Mettre à jour la réponse existante
+            try:
+                existing_answer.video_file = video_file
+                existing_answer.duration = int(duration)
+                existing_answer.file_size = video_file.size
+                existing_answer.status = 'completed'
+                existing_answer.save()
+                
+                logger.info(f"✅ Réponse mise à jour avec succès: ID {existing_answer.id}")
+                
+                serializer = self.get_serializer(existing_answer)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+                
+            except Exception as e:
+                logger.error(f"❌ Erreur lors de la mise à jour de la réponse: {str(e)}")
+                return Response({
+                    "detail": f"Erreur lors de la mise à jour: {str(e)}"
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        else:
+            # Créer une nouvelle réponse
+            try:
+                logger.info(f"💾 Création d'une nouvelle réponse...")
+                answer = InterviewAnswer.objects.create(
+                    question=question,
+                    candidate=candidate,
+                    video_file=video_file,
+                    duration=int(duration),
+                    file_size=video_file.size,
+                    status='completed'
+                )
+                logger.info(f"✅ Réponse créée avec succès: ID {answer.id}")
+                
+                serializer = self.get_serializer(answer)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            except Exception as e:
+                logger.error(f"❌ Erreur lors de la création de la réponse: {str(e)}")
+                return Response({
+                    "detail": f"Erreur lors de la sauvegarde: {str(e)}"
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def by_campaign(self, request):
