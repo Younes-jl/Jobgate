@@ -738,21 +738,33 @@ class AIQuestionGeneratorView(APIView):
         if difficulty_level not in ['easy', 'medium', 'hard']:
             return Response({'error': 'Niveau de difficulté invalide.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Extraction des prérequis depuis les données reçues
+        requirements_list = request.data.get('required_skills', [])
+        if isinstance(requirements_list, list):
+            requirements = ', '.join(requirements_list)
+        else:
+            requirements = str(requirements_list) if requirements_list else ''
+
+        # Extraction des compteurs de questions spécifiques
+        behavioral_count = request.data.get('behavioral_count')
+        technical_count = request.data.get('technical_count')
+
         try:
-            # Appel au service IA (Gemini/GPT)
-            questions_data = ai_generator.generate_questions(
-                job_title=job_title,
-                job_description=job_description,
-                required_skills=required_skills,
-                experience_level=experience_level,
-                question_count=question_count,
-                difficulty_level=difficulty_level
+            # Appel au service IA pour générer les questions
+            questions = ai_generator.generate_questions(
+                offer_title=job_title,
+                offer_description=job_description,
+                number_of_questions=question_count,
+                difficulty=difficulty_level,
+                requirements=requirements,
+                behavioral_count=behavioral_count,
+                technical_count=technical_count
             )
 
             # Analyser la qualité des questions générées
+            quality_analysis = analyze_question_quality(questions)
             analyzed_questions = []
-            for question in questions_data:
-                quality_analysis = analyze_question_quality(question.get('question', ''))
+            for question in questions:
                 analyzed_questions.append({
                     **question,
                     'quality_score': quality_analysis.get('score', 0),

@@ -45,9 +45,17 @@ const CreateOfferWithCampaign = () => {
         time_limit: 60
     });
 
-    // Loader IA et erreur IA
+    // État pour les options IA
     const [aiLoading, setAiLoading] = useState(false);
     const [aiError, setAiError] = useState('');
+    const [aiOptions, setAiOptions] = useState({
+        questionCount: 5,
+        difficulty: 'medium',
+        experienceLevel: 'intermediate',
+        behavioralCount: 2,
+        technicalCount: 3,
+        showAdvanced: false
+    });
     // Suggestion de questions avec l'IA
     const suggestQuestionsWithAI = async () => {
         setAiLoading(true);
@@ -58,9 +66,11 @@ const CreateOfferWithCampaign = () => {
                 job_title: offer.title,
                 job_description: offer.description,
                 required_skills: offer.requirements ? offer.requirements.split(',').map(s => s.trim()).filter(Boolean) : [],
-                experience_level: 'intermediate',
-                question_count: 5,
-                difficulty_level: 'medium'
+                experience_level: aiOptions.experienceLevel,
+                question_count: aiOptions.questionCount,
+                difficulty_level: aiOptions.difficulty,
+                behavioral_count: aiOptions.behavioralCount,
+                technical_count: aiOptions.technicalCount
             };
             const response = await api.post('/interviews/ai/generate-questions/', payload);
             const questions = response.data.questions || [];
@@ -74,8 +84,11 @@ const CreateOfferWithCampaign = () => {
                         ...prev.questions,
                         ...questions.map((q, idx) => ({
                             text: q.question || q.text || '',
-                            time_limit: 60,
-                            id: Date.now() + idx
+                            time_limit: q.expected_duration || 120,
+                            id: Date.now() + idx,
+                            type: q.type || 'comportementale',
+                            difficulty: q.difficulty_level || aiOptions.difficulty,
+                            generated_by_ai: true
                         }))
                     ]
                 }));
@@ -121,6 +134,40 @@ const CreateOfferWithCampaign = () => {
         color: '#333'
     };
 
+    const aiButtonStyle = {
+        backgroundColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        color: 'white',
+        padding: '12px 20px',
+        border: 'none',
+        borderRadius: '8px',
+        cursor: 'pointer',
+        fontSize: '16px',
+        fontWeight: 'bold',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
+        transition: 'all 0.3s ease'
+    };
+
+    const aiSectionStyle = {
+        backgroundColor: '#f8faff',
+        border: '2px solid #e3f2fd',
+        borderRadius: '12px',
+        padding: '20px',
+        marginBottom: '20px',
+        position: 'relative'
+    };
+
+    const advancedOptionsStyle = {
+        backgroundColor: '#ffffff',
+        border: '1px solid #e0e0e0',
+        borderRadius: '8px',
+        padding: '15px',
+        marginTop: '15px'
+    };
+
     // Gestion des changements dans le formulaire d'offre
     const handleOfferChange = (e) => {
         const { name, value, type, checked } = e.target;
@@ -146,6 +193,30 @@ const CreateOfferWithCampaign = () => {
             ...newQuestion,
             [name]: name === 'time_limit' ? parseInt(value, 10) : value
         });
+    };
+
+    // Gestion des changements dans les options IA
+    const handleAiOptionsChange = (e) => {
+        const { name, value, type, checked } = e.target;
+        const newValue = type === 'checkbox' ? checked : 
+                        (['questionCount', 'behavioralCount', 'technicalCount'].includes(name) ? parseInt(value, 10) : value);
+        
+        const updatedOptions = {
+            ...aiOptions,
+            [name]: newValue
+        };
+        
+        // Auto-ajustement des compteurs pour maintenir la cohérence
+        if (name === 'questionCount') {
+            const total = parseInt(value, 10);
+            const ratio = updatedOptions.behavioralCount / (updatedOptions.behavioralCount + updatedOptions.technicalCount);
+            updatedOptions.behavioralCount = Math.round(total * ratio);
+            updatedOptions.technicalCount = total - updatedOptions.behavioralCount;
+        } else if (name === 'behavioralCount' || name === 'technicalCount') {
+            updatedOptions.questionCount = updatedOptions.behavioralCount + updatedOptions.technicalCount;
+        }
+        
+        setAiOptions(updatedOptions);
     };
 
     // Ajout d'une question à la campagne
@@ -462,17 +533,185 @@ const CreateOfferWithCampaign = () => {
             <div style={{ border: '1px solid #eee', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
                 <h3>Questions d'entretien</h3>
 
-                {/* Bouton IA */}
-                <div style={{ marginBottom: '15px' }}>
-                    <button
-                        type="button"
-                        onClick={suggestQuestionsWithAI}
-                        style={{ ...secondaryButtonStyle, fontWeight: 'bold', fontSize: '16px', background: '#ffd700', color: '#333' }}
-                        disabled={aiLoading || !offer.title || !offer.description}
-                    >
-                        {aiLoading ? 'Génération IA...' : '✨ Suggérer des questions avec l\'IA'}
-                    </button>
-                    {aiError && <div style={{ color: 'red', marginTop: '8px' }}>{aiError}</div>}
+                {/* Section IA Améliorée */}
+                <div style={aiSectionStyle}>
+                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '15px' }}>
+                        <h4 style={{ margin: 0, color: '#1976d2', fontSize: '18px' }}>
+                            🤖 Assistant IA - Génération Intelligente
+                        </h4>
+                        <div style={{ 
+                            marginLeft: 'auto', 
+                            backgroundColor: '#4caf50', 
+                            color: 'white', 
+                            padding: '4px 8px', 
+                            borderRadius: '12px', 
+                            fontSize: '12px',
+                            fontWeight: 'bold'
+                        }}>
+                            Powered by Google Gemini
+                        </div>
+                    </div>
+                    
+                    <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px' }}>
+                        Générez des questions personnalisées basées sur votre offre d'emploi
+                    </p>
+
+                    {/* Options rapides */}
+                    <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <label style={{ fontSize: '14px', fontWeight: '500' }}>Nombre:</label>
+                            <select
+                                name="questionCount"
+                                value={aiOptions.questionCount}
+                                onChange={handleAiOptionsChange}
+                                style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ddd' }}
+                            >
+                                <option value={3}>3 questions</option>
+                                <option value={5}>5 questions</option>
+                                <option value={7}>7 questions</option>
+                                <option value={10}>10 questions</option>
+                            </select>
+                        </div>
+                        
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <label style={{ fontSize: '14px', fontWeight: '500' }}>Difficulté:</label>
+                            <select
+                                name="difficulty"
+                                value={aiOptions.difficulty}
+                                onChange={handleAiOptionsChange}
+                                style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ddd' }}
+                            >
+                                <option value="easy">Facile</option>
+                                <option value="medium">Moyen</option>
+                                <option value="hard">Difficile</option>
+                            </select>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => setAiOptions({...aiOptions, showAdvanced: !aiOptions.showAdvanced})}
+                            style={{ 
+                                padding: '4px 8px', 
+                                fontSize: '12px', 
+                                backgroundColor: 'transparent', 
+                                border: '1px solid #ddd', 
+                                borderRadius: '4px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            {aiOptions.showAdvanced ? '🔼 Moins' : '🔽 Plus d\'options'}
+                        </button>
+                    </div>
+
+                    {/* Options avancées */}
+                    {aiOptions.showAdvanced && (
+                        <div style={advancedOptionsStyle}>
+                            <h5 style={{ margin: '0 0 10px 0', color: '#333' }}>Options avancées</h5>
+                            <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+                                <div>
+                                    <label style={{ fontSize: '14px', fontWeight: '500', display: 'block', marginBottom: '4px' }}>
+                                        Niveau d'expérience:
+                                    </label>
+                                    <select
+                                        name="experienceLevel"
+                                        value={aiOptions.experienceLevel}
+                                        onChange={handleAiOptionsChange}
+                                        style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #ddd', width: '140px' }}
+                                    >
+                                        <option value="junior">Junior (0-2 ans)</option>
+                                        <option value="intermediate">Intermédiaire (2-5 ans)</option>
+                                        <option value="senior">Senior (5+ ans)</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label style={{ fontSize: '14px', fontWeight: '500', display: 'block', marginBottom: '4px' }}>
+                                        Questions comportementales:
+                                    </label>
+                                    <input
+                                        type="number"
+                                        name="behavioralCount"
+                                        value={aiOptions.behavioralCount}
+                                        onChange={handleAiOptionsChange}
+                                        min="0"
+                                        max="10"
+                                        style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #ddd', width: '60px' }}
+                                    />
+                                </div>
+                                
+                                <div>
+                                    <label style={{ fontSize: '14px', fontWeight: '500', display: 'block', marginBottom: '4px' }}>
+                                        Questions techniques:
+                                    </label>
+                                    <input
+                                        type="number"
+                                        name="technicalCount"
+                                        value={aiOptions.technicalCount}
+                                        onChange={handleAiOptionsChange}
+                                        min="0"
+                                        max="10"
+                                        style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #ddd', width: '60px' }}
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div style={{ marginTop: '10px', padding: '8px', backgroundColor: '#f5f5f5', borderRadius: '4px', fontSize: '12px', color: '#666' }}>
+                                💡 Total: {aiOptions.behavioralCount + aiOptions.technicalCount} questions
+                                ({aiOptions.behavioralCount} comportementales + {aiOptions.technicalCount} techniques)
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Bouton de génération */}
+                    <div style={{ marginTop: '15px' }}>
+                        <button
+                            type="button"
+                            onClick={suggestQuestionsWithAI}
+                            style={{
+                                ...aiButtonStyle,
+                                opacity: (aiLoading || !offer.title || !offer.description) ? 0.6 : 1
+                            }}
+                            disabled={aiLoading || !offer.title || !offer.description}
+                        >
+                            {aiLoading ? (
+                                <>
+                                    <div style={{ 
+                                        width: '16px', 
+                                        height: '16px', 
+                                        border: '2px solid #ffffff40', 
+                                        borderTop: '2px solid #ffffff', 
+                                        borderRadius: '50%', 
+                                        animation: 'spin 1s linear infinite' 
+                                    }}></div>
+                                    Génération en cours...
+                                </>
+                            ) : (
+                                <>
+                                    ✨ Générer {aiOptions.questionCount} questions avec l'IA
+                                </>
+                            )}
+                        </button>
+                        
+                        {!offer.title || !offer.description ? (
+                            <p style={{ fontSize: '12px', color: '#ff9800', marginTop: '8px', fontStyle: 'italic' }}>
+                                💡 Remplissez d'abord le titre et la description pour activer l'IA
+                            </p>
+                        ) : null}
+                    </div>
+
+                    {aiError && (
+                        <div style={{ 
+                            color: '#d32f2f', 
+                            backgroundColor: '#ffebee', 
+                            padding: '10px', 
+                            borderRadius: '6px', 
+                            marginTop: '10px',
+                            fontSize: '14px',
+                            border: '1px solid #ffcdd2'
+                        }}>
+                            ❌ {aiError}
+                        </div>
+                    )}
                 </div>
 
                 {campaign.questions.length > 0 ? (
@@ -481,9 +720,54 @@ const CreateOfferWithCampaign = () => {
                             <li key={question.id} style={{ border: '1px solid #eee', padding: '10px', marginBottom: '10px', borderRadius: '4px' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                     <div>
-                                        <strong>Question {index + 1}:</strong> {question.text}
-                                        <br />
-                                        <small>Temps de réponse: {question.time_limit} secondes</small>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                                            <strong>Question {index + 1}:</strong>
+                                            {question.generated_by_ai && (
+                                                <span style={{ 
+                                                    backgroundColor: '#e3f2fd', 
+                                                    color: '#1976d2', 
+                                                    padding: '2px 6px', 
+                                                    borderRadius: '12px', 
+                                                    fontSize: '10px',
+                                                    fontWeight: 'bold'
+                                                }}>
+                                                    🤖 IA
+                                                </span>
+                                            )}
+                                            {question.type && (
+                                                <span style={{ 
+                                                    backgroundColor: '#f3e5f5', 
+                                                    color: '#7b1fa2', 
+                                                    padding: '2px 6px', 
+                                                    borderRadius: '12px', 
+                                                    fontSize: '10px',
+                                                    textTransform: 'capitalize'
+                                                }}>
+                                                    {question.type}
+                                                </span>
+                                            )}
+                                            {question.difficulty && (
+                                                <span style={{ 
+                                                    backgroundColor: question.difficulty === 'easy' ? '#e8f5e8' : 
+                                                                   question.difficulty === 'medium' ? '#fff3e0' : '#ffebee',
+                                                    color: question.difficulty === 'easy' ? '#2e7d32' : 
+                                                           question.difficulty === 'medium' ? '#f57c00' : '#c62828',
+                                                    padding: '2px 6px', 
+                                                    borderRadius: '12px', 
+                                                    fontSize: '10px',
+                                                    textTransform: 'capitalize'
+                                                }}>
+                                                    {question.difficulty === 'easy' ? 'Facile' : 
+                                                     question.difficulty === 'medium' ? 'Moyen' : 'Difficile'}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div style={{ marginBottom: '8px', lineHeight: '1.4' }}>
+                                            {question.text}
+                                        </div>
+                                        <small style={{ color: '#666' }}>
+                                            ⏱️ Temps de réponse: {question.time_limit} secondes
+                                        </small>
                                     </div>
                                     <button 
                                         type="button" 
