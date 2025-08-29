@@ -208,3 +208,13 @@ else:
     # Local storage for development
     MEDIA_URL = '/media/'
     MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# --- Configuration IA - Google Gemini ---
+USE_GOOGLE_GEMINI = os.environ.get('USE_GOOGLE_GEMINI', 'true').lower() == 'true'
+GOOGLE_GEMINI_API_KEY = os.environ.get('GOOGLE_GEMINI_API_KEY')
+AI_PROVIDER = os.environ.get('AI_PROVIDER', 'google_gemini')
+ENABLE_AI_FEATURES = os.environ.get('ENABLE_AI_FEATURES', 'True').lower() == 'true'
+
+# Configuration Hugging Face (fallback)
+HUGGINGFACE_API_TOKEN = os.environ.get('HUGGINGFACE_API_TOKEN')
+HUGGINGFACE_MODEL = os.environ.get('HUGGINGFACE_MODEL', 'gpt2')

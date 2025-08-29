@@ -1,6 +1,10 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import JobOfferViewSet, InterviewCampaignViewSet, InterviewQuestionViewSet, JobApplicationViewSet, CampaignLinkViewSet, InterviewAnswerViewSet
+from .views import (
+    JobOfferViewSet, InterviewCampaignViewSet, InterviewQuestionViewSet, 
+    JobApplicationViewSet, CampaignLinkViewSet, InterviewAnswerViewSet,
+    AIQuestionGeneratorView, AIQuestionAnalysisView, AIQuestionTemplatesView
+)
 
 router = DefaultRouter()
 router.register(r'offers', JobOfferViewSet, basename='job-offers')
@@ -22,4 +26,9 @@ urlpatterns = [
     # URLs publiques pour les liens d'entretien (accès sans authentification)
     path('offers/<int:pk>/public/', JobOfferViewSet.as_view({'get': 'public_detail'}), name='job-offer-public-detail'),
     path('campaigns/<int:pk>/public/', InterviewCampaignViewSet.as_view({'get': 'public_detail'}), name='campaign-public-detail'),
+    
+    # ========== URLs IA pour Génération de Questions ==========
+    path('ai/generate-questions/', AIQuestionGeneratorView.as_view(), name='ai-generate-questions'),
+    path('ai/analyze-question/', AIQuestionAnalysisView.as_view(), name='ai-analyze-question'),
+    path('ai/question-templates/', AIQuestionTemplatesView.as_view(), name='ai-question-templates'),
 ]

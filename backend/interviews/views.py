@@ -4,6 +4,7 @@ from datetime import timedelta
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from django.core.mail import send_mail
@@ -18,7 +19,10 @@ from .serializers import (
     CampaignLinkSerializer,
     InterviewAnswerSerializer,
 )
+from .ai_service import ai_generator, analyze_question_quality
+from django.conf import settings
 import logging
+from .ai_service import ai_generator, analyze_question_quality
 
 logger = logging.getLogger(__name__)
 
@@ -682,3 +686,220 @@ class InterviewAnswerViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(answers, many=True)
         return Response(serializer.data)
+
+
+# ========== Vues IA pour Génération de Questions ==========
+
+class AIQuestionGeneratorView(APIView):
+    """
+    Vue pour générer des questions d'entrevue avec l'IA.
+    POST /api/ai/generate-questions/
+    """
+    permission_classes = [IsAuthenticated]
+    
+
+    def post(self, request):
+        """
+        Génère des questions d'entrevue basées sur l'offre d'emploi avec Google Gemini.
+        Body attendu:
+        {
+            "job_title": "string",
+            "job_description": "string",
+            "required_skills": ["skill1", "skill2"],
+            "experience_level": "junior|intermediate|senior",
+            "question_count": 5,
+            "difficulty_level": "easy|medium|hard"
+        }
+        """
+        # Sécurité: Seuls les recruteurs ou staff
+        if not hasattr(request.user, 'role') or (request.user.role != 'RECRUTEUR' and not request.user.is_staff):
+            return Response({
+                'error': 'Seuls les recruteurs peuvent générer des questions IA.'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # Récupération des données
+        job_title = request.data.get('job_title', '').strip()
+        job_description = request.data.get('job_description', '').strip()
+        required_skills = request.data.get('required_skills', [])
+        experience_level = request.data.get('experience_level', 'intermediate')
+        try:
+            question_count = int(request.data.get('question_count', 5))
+        except (ValueError, TypeError):
+            question_count = 5
+        difficulty_level = request.data.get('difficulty_level', 'medium')
+
+        # Validation
+        if not job_title or not job_description:
+            return Response({'error': 'Le titre et la description du poste sont obligatoires.'}, status=status.HTTP_400_BAD_REQUEST)
+        if question_count < 1 or question_count > 20:
+            return Response({'error': 'Le nombre de questions doit être entre 1 et 20.'}, status=status.HTTP_400_BAD_REQUEST)
+        if experience_level not in ['junior', 'intermediate', 'senior']:
+            return Response({'error': 'Niveau d\'expérience invalide.'}, status=status.HTTP_400_BAD_REQUEST)
+        if difficulty_level not in ['easy', 'medium', 'hard']:
+            return Response({'error': 'Niveau de difficulté invalide.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # Appel au service IA (Gemini/GPT)
+            questions_data = ai_generator.generate_questions(
+                job_title=job_title,
+                job_description=job_description,
+                required_skills=required_skills,
+                experience_level=experience_level,
+                question_count=question_count,
+                difficulty_level=difficulty_level
+            )
+
+            # Analyser la qualité des questions générées
+            analyzed_questions = []
+            for question in questions_data:
+                quality_analysis = analyze_question_quality(question.get('question', ''))
+                analyzed_questions.append({
+                    **question,
+                    'quality_score': quality_analysis.get('score', 0),
+                    'quality_feedback': quality_analysis.get('feedback', [])
+                })
+
+            logger.info(f"Questions IA générées avec succès pour l'utilisateur {getattr(request.user, 'id', 'inconnu')}")
+
+            return Response({
+                'success': True,
+                'questions': analyzed_questions,
+                'metadata': {
+                    'job_title': job_title,
+                    'experience_level': experience_level,
+                    'difficulty_level': difficulty_level,
+                    'generated_count': len(analyzed_questions),
+                    'ai_provider': 'google_gemini'
+                }
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Erreur lors de la génération de questions IA: {str(e)}")
+            return Response({
+                'error': 'Erreur lors de la génération des questions IA. Veuillez réessayer.',
+                'details': str(e) if getattr(settings, 'DEBUG', False) else None
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class AIQuestionAnalysisView(APIView):
+    """
+    Vue pour analyser la qualité d'une question existante.
+    POST /api/ai/analyze-question/
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        """
+        Analyse la qualité d'une question d'entrevue.
+        
+        Body attendu:
+        {
+            "question": "string"
+        }
+        """
+        # Vérifier que l'utilisateur est un recruteur
+        if request.user.role != 'RECRUTEUR' and not request.user.is_staff:
+            return Response({
+                'error': 'Seuls les recruteurs peuvent analyser les questions.'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        question_text = request.data.get('question', '').strip()
+        
+        if not question_text:
+            return Response({
+                'error': 'La question à analyser est obligatoire.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if len(question_text) < 10:
+            return Response({
+                'error': 'La question doit contenir au moins 10 caractères.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Analyser la qualité de la question
+            analysis = analyze_question_quality(question_text)
+            
+            logger.info(f"Analyse de qualité effectuée pour une question de l'utilisateur {request.user.id}")
+            
+            return Response({
+                'success': True,
+                'question': question_text,
+                'analysis': analysis
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de l'analyse de question: {str(e)}")
+            return Response({
+                'error': 'Erreur lors de l\'analyse de la question. Veuillez réessayer.',
+                'details': str(e) if settings.DEBUG else None
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class AIQuestionTemplatesView(APIView):
+    """
+    Vue pour obtenir des modèles de questions prédéfinies par catégorie.
+    GET /api/ai/question-templates/
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """
+        Retourne des modèles de questions organisés par catégorie.
+        
+        Query params:
+        - category: (optionnel) Filtrer par catégorie spécifique
+        - experience_level: (optionnel) Filtrer par niveau d'expérience
+        """
+        # Vérifier que l'utilisateur est un recruteur
+        if request.user.role != 'RECRUTEUR' and not request.user.is_staff:
+            return Response({
+                'error': 'Seuls les recruteurs peuvent accéder aux modèles.'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        category_filter = request.query_params.get('category')
+        experience_filter = request.query_params.get('experience_level')
+        
+        try:
+            # Obtenir les modèles de questions prédéfinies
+            templates = ai_generator._get_fallback_questions()
+            
+            # Appliquer les filtres si spécifiés
+            if category_filter or experience_filter:
+                filtered_templates = []
+                for question in templates:
+                    include_question = True
+                    
+                    if category_filter and question.get('category', '').lower() != category_filter.lower():
+                        include_question = False
+                    
+                    if experience_filter and question.get('difficulty', '').lower() != experience_filter.lower():
+                        include_question = False
+                    
+                    if include_question:
+                        filtered_templates.append(question)
+                        
+                templates = filtered_templates
+            
+            # Organiser par catégories
+            categories = {}
+            for question in templates:
+                category = question.get('category', 'General')
+                if category not in categories:
+                    categories[category] = []
+                categories[category].append(question)
+            
+            logger.info(f"Modèles de questions récupérés pour l'utilisateur {request.user.id}")
+            
+            return Response({
+                'success': True,
+                'templates': categories,
+                'total_questions': len(templates),
+                'categories_count': len(categories)
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de la récupération des modèles: {str(e)}")
+            return Response({
+                'error': 'Erreur lors de la récupération des modèles de questions.',
+                'details': str(e) if settings.DEBUG else None
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

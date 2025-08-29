@@ -45,6 +45,48 @@ const CreateOfferWithCampaign = () => {
         time_limit: 60
     });
 
+    // Loader IA et erreur IA
+    const [aiLoading, setAiLoading] = useState(false);
+    const [aiError, setAiError] = useState('');
+    // Suggestion de questions avec l'IA
+    const suggestQuestionsWithAI = async () => {
+        setAiLoading(true);
+        setAiError('');
+        try {
+            // Appel à l'API IA
+            const payload = {
+                job_title: offer.title,
+                job_description: offer.description,
+                required_skills: offer.requirements ? offer.requirements.split(',').map(s => s.trim()).filter(Boolean) : [],
+                experience_level: 'intermediate',
+                question_count: 5,
+                difficulty_level: 'medium'
+            };
+            const response = await api.post('/interviews/ai/generate-questions/', payload);
+            const questions = response.data.questions || [];
+            if (questions.length === 0) {
+                setAiError("Aucune question générée par l'IA.");
+            } else {
+                // Ajout des questions générées à la campagne
+                setCampaign(prev => ({
+                    ...prev,
+                    questions: [
+                        ...prev.questions,
+                        ...questions.map((q, idx) => ({
+                            text: q.question || q.text || '',
+                            time_limit: 60,
+                            id: Date.now() + idx
+                        }))
+                    ]
+                }));
+            }
+        } catch (err) {
+            setAiError(err.response?.data?.error || "Erreur lors de la génération des questions IA.");
+        } finally {
+            setAiLoading(false);
+        }
+    };
+
     // Styles communs
     const formStyle = {
         maxWidth: '800px',
@@ -349,7 +391,7 @@ const CreateOfferWithCampaign = () => {
 
     // Formulaire de campagne d'entretien (Étape 2)
     const renderCampaignForm = () => (
-        <div style={formStyle}>
+    <div style={formStyle}>
             <h2>Créer une campagne d'entretiens vidéo</h2>
             <p>Associée à l'offre: {offer.title}</p>
             
@@ -419,7 +461,20 @@ const CreateOfferWithCampaign = () => {
             
             <div style={{ border: '1px solid #eee', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
                 <h3>Questions d'entretien</h3>
-                
+
+                {/* Bouton IA */}
+                <div style={{ marginBottom: '15px' }}>
+                    <button
+                        type="button"
+                        onClick={suggestQuestionsWithAI}
+                        style={{ ...secondaryButtonStyle, fontWeight: 'bold', fontSize: '16px', background: '#ffd700', color: '#333' }}
+                        disabled={aiLoading || !offer.title || !offer.description}
+                    >
+                        {aiLoading ? 'Génération IA...' : '✨ Suggérer des questions avec l\'IA'}
+                    </button>
+                    {aiError && <div style={{ color: 'red', marginTop: '8px' }}>{aiError}</div>}
+                </div>
+
                 {campaign.questions.length > 0 ? (
                     <ul style={{ listStyle: 'none', padding: 0 }}>
                         {campaign.questions.map((question, index) => (
@@ -444,7 +499,7 @@ const CreateOfferWithCampaign = () => {
                 ) : (
                     <p>Aucune question ajoutée. Veuillez ajouter au moins une question.</p>
                 )}
-                
+
                 <div style={{ backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '4px', marginTop: '15px' }}>
                     <h4>Ajouter une question</h4>
                     <div>
@@ -457,7 +512,7 @@ const CreateOfferWithCampaign = () => {
                             placeholder="Ex: Présentez-vous et décrivez votre parcours professionnel."
                         />
                     </div>
-                    
+
                     <div>
                         <label>Temps de réponse (secondes)</label>
                         <input
@@ -470,7 +525,7 @@ const CreateOfferWithCampaign = () => {
                             max="300"
                         />
                     </div>
-                    
+
                     <button
                         type="button"
                         onClick={addQuestion}
