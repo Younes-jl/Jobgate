@@ -1,4 +1,3 @@
-
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
@@ -46,6 +45,6 @@ urlpatterns = [
     path('api/', include(router.urls)),
 ]
 
-# Servir les fichiers média en mode développement local uniquement
-if settings.DEBUG and not getattr(settings, 'USE_FIREBASE_STORAGE', False):
+# Servir les fichiers média en mode développement
+if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

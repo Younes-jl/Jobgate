@@ -141,6 +141,8 @@ const EntretienPage = () => {
   const startRecording = async () => {
     try {
       if (videoStream) {
+        console.log('Démarrage enregistrement avec stream original...');
+        
         const recorder = new MediaRecorder(videoStream);
         const chunks = [];
         let startTime = Date.now();
@@ -148,27 +150,40 @@ const EntretienPage = () => {
         recorder.ondataavailable = (event) => {
           if (event.data.size > 0) {
             chunks.push(event.data);
+            console.log('Chunk reçu:', event.data.size, 'bytes');
           }
         };
 
         recorder.onstop = async () => {
           const endTime = Date.now();
-          const actualDuration = Math.floor((endTime - startTime) / 1000); // en secondes
+          const actualDuration = Math.floor((endTime - startTime) / 1000);
           const blob = new Blob(chunks, { type: 'video/webm' });
           
           console.log('Enregistrement terminé:', {
             duration: actualDuration,
             size: blob.size,
-            questionIndex: currentQuestionIndex
+            questionIndex: currentQuestionIndex,
+            chunksCount: chunks.length
           });
           
-          // Sauvegarder la réponse vidéo
-          await saveVideoAnswer(blob, currentQuestionIndex, actualDuration);
+          if (blob.size > 0) {
+            await saveVideoAnswer(blob, currentQuestionIndex, actualDuration);
+          } else {
+            console.error('Blob vide généré');
+            setError('Erreur d\'enregistrement: fichier vide. Veuillez réessayer.');
+          }
         };
 
-        recorder.start();
+        recorder.onerror = (event) => {
+          console.error('Erreur MediaRecorder:', event.error);
+          setError('Erreur technique d\'enregistrement.');
+        };
+
+        recorder.start(1000); // Chunk toutes les secondes
         setMediaRecorder(recorder);
         setIsRecording(true);
+        
+        console.log('MediaRecorder démarré, état:', recorder.state);
       }
     } catch (error) {
       console.error('Erreur lors du démarrage de l\'enregistrement:', error);
@@ -184,40 +199,47 @@ const EntretienPage = () => {
     setIsRecording(false);
   };
 
-  // Fonction pour sauvegarder la réponse vidéo
+  // Fonction pour sauvegarder la réponse vidéo avec Cloudinary
   const saveVideoAnswer = async (videoBlob, questionIndex, duration) => {
     try {
       const currentQuestion = questions[questionIndex];
       
-      // Créer les données du formulaire
+      // Créer les données du formulaire pour Cloudinary
       const formData = new FormData();
       
-      // Créer un fichier à partir du blob
+      // Créer un fichier à partir du blob original (sans traitement)
       const videoFile = new File([videoBlob], `reponse-q${questionIndex + 1}-${Date.now()}.webm`, {
         type: 'video/webm'
       });
       
       formData.append('video_file', videoFile);
       formData.append('question_id', currentQuestion.id);
-      formData.append('candidate_identifier', token); // Utiliser le token de l'invitation
-      formData.append('duration', duration);
+      formData.append('candidate_token', token);
       
-      console.log('Sauvegarde de la réponse vidéo...', {
+      console.log('Upload vidéo vers Cloudinary...', {
         question_id: currentQuestion.id,
         duration: duration,
         file_size: videoBlob.size,
         token: token
       });
       
-      // Envoyer au backend
-      const response = await api.post('/interviews/answers/', formData, {
+      // Upload vers Cloudinary via notre API
+      const cloudinaryResponse = await api.post('/interviews/videos/upload/', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       });
       
-      console.log('Réponse sauvegardée avec succès:', response.data);
-      return response.data;
+      console.log('Vidéo uploadée sur Cloudinary:', cloudinaryResponse.data);
+      
+      // La réponse est déjà sauvegardée par l'upload Cloudinary
+      if (cloudinaryResponse.data.answer_saved_to_db) {
+        console.log('Réponse sauvegardée avec succès via Cloudinary upload');
+        return cloudinaryResponse.data;
+      } else {
+        console.warn('Vidéo uploadée mais réponse non sauvegardée en BDD');
+        return cloudinaryResponse.data;
+      }
       
     } catch (error) {
       console.error('Erreur lors de la sauvegarde de la réponse:', error);
@@ -438,7 +460,8 @@ const EntretienPage = () => {
                           width: '320px',
                           height: '240px',
                           backgroundColor: '#000',
-                          transform: 'scaleX(-1)' // Effet miroir pour corriger l'inversion
+                          objectFit: 'cover',
+                          transform: 'scaleX(-1)' // Effet miroir
                         }}
                       />
                       {!videoStream && (
@@ -621,7 +644,7 @@ const EntretienPage = () => {
                       style={{
                         objectFit: 'cover',
                         borderRadius: '8px',
-                        transform: 'scaleX(-1)'
+                        transform: 'scaleX(-1)' // Effet miroir
                       }}
                     />
                     

@@ -1,30 +1,164 @@
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from datetime import timedelta
-from rest_framework import viewsets, permissions, status
-from rest_framework.response import Response
-from rest_framework.decorators import action, api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status, permissions
+from rest_framework.decorators import api_view, permission_classes, action
+from rest_framework.viewsets import ModelViewSet
+from rest_framework import viewsets
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.shortcuts import get_object_or_404
-from django.core.mail import send_mail
+from django.contrib.auth import get_user_model
 from users.models import CustomUser
-from .models import JobOffer, InterviewCampaign, InterviewQuestion, JobApplication, CampaignLink, InterviewAnswer
-from .serializers import (
-    JobOfferSerializer, 
-    InterviewCampaignSerializer, 
-    InterviewCampaignCreateSerializer,
-    InterviewQuestionSerializer,
-    JobApplicationSerializer,
-    CampaignLinkSerializer,
-    InterviewAnswerSerializer,
-)
-from .ai_service import ai_generator, analyze_question_quality
+from django.utils import timezone
+from django.http import JsonResponse
+from django.db.models import Q
+from .models import JobOffer, InterviewCampaign, CampaignLink, InterviewQuestion, InterviewAnswer, JobApplication
+from .serializers import JobOfferSerializer, InterviewCampaignSerializer, InterviewCampaignCreateSerializer, CampaignLinkSerializer, InterviewQuestionSerializer, InterviewAnswerSerializer, JobApplicationSerializer
+from .ai_service import AIInterviewQuestionGenerator, analyze_question_quality
+from django.core.mail import send_mail
+from .cloudinary_service import CloudinaryVideoService
 from django.conf import settings
 import logging
-from .ai_service import ai_generator, analyze_question_quality
 
 logger = logging.getLogger(__name__)
+
+class CloudinaryVideoUploadView(APIView):
+    """
+    Vue pour l'upload de vidéos sur Cloudinary.
+    """
+    permission_classes = [AllowAny]  # Permet l'accès avec token candidat
+    
+    def post(self, request):
+        """
+        Upload une vidéo sur Cloudinary.
+        
+        Body attendu:
+        {
+            "video_file": "fichier vidéo",
+            "question_id": "ID de la question",
+            "candidate_token": "token du candidat"
+        }
+        """
+        video_file = request.FILES.get('video_file')
+        question_id = request.data.get('question_id')
+        candidate_token = request.data.get('candidate_token')
+        
+        if not video_file:
+            return Response({
+                "error": "Le fichier vidéo est obligatoire."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Vérifier que le token candidat est valide
+        if not candidate_token:
+            return Response({
+                "error": "Token candidat requis."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Vérifier que le token correspond à un lien valide
+        try:
+            link = CampaignLink.objects.get(token=candidate_token)
+            if not link.is_valid:
+                return Response({
+                    "error": "Token candidat invalide ou expiré."
+                }, status=status.HTTP_403_FORBIDDEN)
+        except CampaignLink.DoesNotExist:
+            return Response({
+                "error": "Token candidat invalide ou expiré."
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            # Générer un public_id unique pour la vidéo
+            public_id = f"interview_{question_id}_{candidate_token}_{timezone.now().strftime('%Y%m%d_%H%M%S')}"
+            
+            logger.info(f"Tentative d'upload vidéo - Token: {candidate_token}, Question: {question_id}")
+            
+            # Utiliser le service Cloudinary pour uploader la vidéo
+            result = CloudinaryVideoService.upload_video(
+                video_file, 
+                public_id=public_id,
+                folder="jobgate/interviews"
+            )
+            
+            if not result:
+                logger.error("CloudinaryVideoService.upload_video a retourné None")
+                return Response({
+                    "error": "Erreur lors de l'upload sur Cloudinary."
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+            logger.info(f"Upload Cloudinary réussi: {result.get('public_id')}")
+            
+            # Identifier le candidat via le token pour sauvegarder dans InterviewAnswer
+            candidate = None
+            if link.candidate:
+                candidate = link.candidate
+            elif link.email:
+                try:
+                    candidate = CustomUser.objects.get(email=link.email)
+                except CustomUser.DoesNotExist:
+                    logger.warning(f"Candidat introuvable pour email: {link.email}")
+            
+            # Sauvegarder dans le modèle InterviewAnswer si candidat et question_id disponibles
+            answer_saved = False
+            if candidate and question_id:
+                try:
+                    question = InterviewQuestion.objects.get(pk=question_id)
+                    
+                    # Vérifier si une réponse existe déjà
+                    existing_answer = InterviewAnswer.objects.filter(
+                        question=question, 
+                        candidate=candidate
+                    ).first()
+                    
+                    if existing_answer:
+                        # Mettre à jour la réponse existante
+                        existing_answer.cloudinary_public_id = result.get('public_id')
+                        existing_answer.cloudinary_url = result.get('url')
+                        existing_answer.cloudinary_secure_url = result.get('secure_url')
+                        existing_answer.duration = result.get('duration', 0)
+                        existing_answer.status = 'completed'
+                        existing_answer.save()
+                        logger.info(f"Réponse mise à jour: ID {existing_answer.id}")
+                        answer_saved = True
+                    else:
+                        # Créer une nouvelle réponse
+                        new_answer = InterviewAnswer.objects.create(
+                            question=question,
+                            candidate=candidate,
+                            cloudinary_public_id=result.get('public_id'),
+                            cloudinary_url=result.get('url'),
+                            cloudinary_secure_url=result.get('secure_url'),
+                            duration=result.get('duration', 0),
+                            file_size=video_file.size,
+                            status='completed'
+                        )
+                        logger.info(f"Nouvelle réponse créée: ID {new_answer.id}")
+                        answer_saved = True
+                        
+                except InterviewQuestion.DoesNotExist:
+                    logger.warning(f"Question {question_id} introuvable pour sauvegarde")
+                except Exception as e:
+                    logger.error(f"Erreur sauvegarde InterviewAnswer: {str(e)}")
+            
+            return Response({
+                "success": True,
+                "cloudinary_public_id": result.get('public_id'),
+                "cloudinary_url": result.get('url'),
+                "cloudinary_secure_url": result.get('secure_url'),
+                "duration": result.get('duration'),
+                "format": result.get('format'),
+                "resource_type": result.get('resource_type'),
+                "answer_saved_to_db": answer_saved
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            logger.error(f"Erreur upload Cloudinary: {str(e)}")
+            logger.error(f"Type d'erreur: {type(e).__name__}")
+            return Response({
+                "error": "Erreur lors de l'upload de la vidéo.",
+                "details": str(e) if settings.DEBUG else None
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # Ajouter une vue API simple pour les candidatures
 @api_view(['GET'])
@@ -751,6 +885,7 @@ class AIQuestionGeneratorView(APIView):
 
         try:
             # Appel au service IA pour générer les questions
+            ai_generator = AIInterviewQuestionGenerator()
             questions = ai_generator.generate_questions(
                 offer_title=job_title,
                 offer_description=job_description,

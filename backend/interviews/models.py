@@ -5,7 +5,6 @@ import secrets
 from users.models import CustomUser
 from django.conf import settings
 from django.db.models import Q, UniqueConstraint
-from .firebase_storage import FirebaseStorage, get_firebase_download_url
 
 class JobOffer(models.Model):
     """
@@ -111,7 +110,6 @@ class InterviewAnswer(models.Model):
         upload_to='interview_answers/%Y/%m/%d/', 
         verbose_name="Fichier vidéo",
         help_text="Réponse vidéo du candidat",
-        storage=FirebaseStorage() if getattr(settings, 'USE_FIREBASE_STORAGE', False) else None
     )
     
     # Métadonnées de l'enregistrement
@@ -200,45 +198,7 @@ class InterviewAnswer(models.Model):
     
     def get_video_url(self):
         """Retourne l'URL de téléchargement/visualisation de la vidéo"""
-        if not self.video_file:
-            return None
-        
-        if getattr(settings, 'USE_FIREBASE_STORAGE', False):
-            # Pour Firebase Storage, générer une URL signée
-            return get_firebase_download_url(self.video_file.name)
-        else:
-            # Pour le stockage local, utiliser l'URL Django standard
-            return self.video_file.url
-    
-    def get_video_streaming_url(self, expiration_hours=1):
-        """Retourne une URL de streaming pour la vidéo avec expiration personnalisée"""
-        if not self.video_file:
-            return None
-        
-        if getattr(settings, 'USE_FIREBASE_STORAGE', False):
-            from datetime import datetime, timedelta
-            from .firebase_storage import initialize_firebase
-            from firebase_admin import storage
-            
-            try:
-                initialize_firebase()
-                bucket = storage.bucket(getattr(settings, 'FIREBASE_STORAGE_BUCKET'))
-                blob = bucket.blob(self.video_file.name)
-                
-                if blob.exists():
-                    return blob.generate_signed_url(
-                        expiration=datetime.utcnow() + timedelta(hours=expiration_hours),
-                        method='GET'
-                    )
-                else:
-                    return None
-            except Exception as e:
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.error(f"Error generating streaming URL for {self.video_file.name}: {e}")
-                return None
-        else:
-            return self.video_file.url if self.video_file else None
+        return self.video_file.url if self.video_file else None
 
 
 def default_link_expiration():

@@ -122,7 +122,8 @@ class InterviewAnswerSerializer(serializers.ModelSerializer):
             'id', 'question', 'candidate', 'video_file', 'duration', 'file_size',
             'status', 'score', 'recruiter_notes', 'created_at', 'updated_at',
             'candidate_name', 'question_text', 'campaign_title', 
-            'duration_formatted', 'file_size_formatted', 'video_url'
+            'duration_formatted', 'file_size_formatted', 'video_url',
+            'cloudinary_public_id', 'cloudinary_url', 'cloudinary_secure_url'
         ]
         read_only_fields = [
             'id', 'created_at', 'updated_at', 'candidate_name', 

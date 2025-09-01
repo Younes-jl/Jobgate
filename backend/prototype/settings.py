@@ -181,33 +181,28 @@ CORS_ALLOW_ALL_HEADERS = True
 # --- FRONTEND URL for absolute links (used in emails) ---
 FRONTEND_BASE_URL = os.environ.get('FRONTEND_BASE_URL', 'http://localhost:3000')
 
-# --- Email configuration with SendGrid ---
+# --- Email configuration with SendGrid ONLY ---
+SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY')
+
+# Configuration SendGrid uniquement (pas de fallback console)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.sendgrid.net'
 EMAIL_HOST_USER = 'apikey'
-EMAIL_HOST_PASSWORD = os.environ.get('SENDGRID_API_KEY', 'your-sendgrid-api-key-here')
+EMAIL_HOST_PASSWORD = SENDGRID_API_KEY
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'JobGate <noreply@jobgate.com>')
 
-# --- Firebase Configuration ---
-FIREBASE_STORAGE_BUCKET = os.environ.get('FIREBASE_STORAGE_BUCKET', 'your-firebase-bucket-name')
-FIREBASE_CREDENTIALS_PATH = os.environ.get('FIREBASE_CREDENTIALS_PATH', None)
-FIREBASE_CREDENTIALS = os.environ.get('FIREBASE_CREDENTIALS', None)
+if SENDGRID_API_KEY:
+    print(f"📧 SendGrid configuré avec clé: {SENDGRID_API_KEY[:10]}...")
+else:
+    print("⚠️ SENDGRID_API_KEY non définie - les emails pourraient échouer")
+
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'JobGate <achyounes737@gmail.com>')
 
 # --- File Storage Configuration ---
-# Use Firebase Storage for production, local storage for development
-USE_FIREBASE_STORAGE = os.environ.get('USE_FIREBASE_STORAGE', 'False').lower() == 'true'
-
-if USE_FIREBASE_STORAGE:
-    DEFAULT_FILE_STORAGE = 'interviews.firebase_storage.FirebaseStorage'
-    # For media files served through Django (optional fallback)
-    MEDIA_URL = '/media/'
-    MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-else:
-    # Local storage for development
-    MEDIA_URL = '/media/'
-    MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+# Use local storage for development and production
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # --- Configuration IA - Google Gemini ---
 USE_GOOGLE_GEMINI = os.environ.get('USE_GOOGLE_GEMINI', 'true').lower() == 'true'
@@ -218,3 +213,31 @@ ENABLE_AI_FEATURES = os.environ.get('ENABLE_AI_FEATURES', 'True').lower() == 'tr
 # Configuration Hugging Face (fallback)
 HUGGINGFACE_API_TOKEN = os.environ.get('HUGGINGFACE_API_TOKEN')
 HUGGINGFACE_MODEL = os.environ.get('HUGGINGFACE_MODEL', 'gpt2')
+
+# --- Configuration Cloudinary ---
+CLOUDINARY_CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME')
+CLOUDINARY_API_KEY = os.environ.get('CLOUDINARY_API_KEY')
+CLOUDINARY_API_SECRET = os.environ.get('CLOUDINARY_API_SECRET')
+USE_CLOUDINARY_STORAGE = os.environ.get('USE_CLOUDINARY_STORAGE', 'False').lower() == 'true'
+
+# Configuration Cloudinary
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
+
+# Configuration directe avec les credentials de la mémoire
+cloudinary.config(
+    cloud_name="dwcb0d2qk",
+    api_key="694818355164956", 
+    api_secret="wNqgPz14OtzDzx67EHib4mVtLRw",
+    secure=True
+)
+
+# Fallback avec variables d'environnement si disponibles
+if CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET:
+    cloudinary.config(
+        cloud_name=CLOUDINARY_CLOUD_NAME,
+        api_key=CLOUDINARY_API_KEY,
+        api_secret=CLOUDINARY_API_SECRET,
+        secure=True
+    )

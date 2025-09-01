@@ -3,7 +3,8 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     JobOfferViewSet, InterviewCampaignViewSet, InterviewQuestionViewSet, 
     JobApplicationViewSet, CampaignLinkViewSet, InterviewAnswerViewSet,
-    AIQuestionGeneratorView, AIQuestionAnalysisView, AIQuestionTemplatesView
+    AIQuestionGeneratorView, AIQuestionAnalysisView, AIQuestionTemplatesView,
+    CloudinaryVideoUploadView
 )
 
 router = DefaultRouter()
@@ -31,4 +32,7 @@ urlpatterns = [
     path('ai/generate-questions/', AIQuestionGeneratorView.as_view(), name='ai-generate-questions'),
     path('ai/analyze-question/', AIQuestionAnalysisView.as_view(), name='ai-analyze-question'),
     path('ai/question-templates/', AIQuestionTemplatesView.as_view(), name='ai-question-templates'),
+    
+    # ========== URLs Cloudinary pour Upload Vidéo ==========
+    path('videos/upload/', CloudinaryVideoUploadView.as_view(), name='cloudinary-video-upload'),
 ]
