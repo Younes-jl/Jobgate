@@ -818,8 +818,155 @@ class InterviewAnswerViewSet(viewsets.ModelViewSet):
             question__campaign=campaign
         ).select_related('candidate', 'question').order_by('-created_at')
         
-        serializer = self.get_serializer(answers, many=True)
+        # Filtrer les réponses qui ont des URLs Cloudinary valides
+        valid_answers = []
+        for answer in answers:
+            if answer.cloudinary_secure_url or answer.cloudinary_url:
+                # Vérifier si la vidéo existe encore sur Cloudinary
+                try:
+                    from .cloudinary_service import CloudinaryVideoService
+                    if answer.cloudinary_public_id:
+                        video_info = CloudinaryVideoService.get_video_info(answer.cloudinary_public_id)
+                        if video_info:
+                            valid_answers.append(answer)
+                        else:
+                            # Vidéo supprimée de Cloudinary, nettoyer l'enregistrement
+                            logger.warning(f"Vidéo supprimée de Cloudinary, nettoyage de l'enregistrement {answer.id}")
+                            answer.cloudinary_public_id = None
+                            answer.cloudinary_url = None
+                            answer.cloudinary_secure_url = None
+                            answer.status = 'deleted'
+                            answer.save()
+                    else:
+                        valid_answers.append(answer)
+                except Exception as e:
+                    logger.error(f"Erreur vérification Cloudinary pour réponse {answer.id}: {e}")
+                    valid_answers.append(answer)  # Garder en cas d'erreur de vérification
+            else:
+                valid_answers.append(answer)
+        
+        serializer = self.get_serializer(valid_answers, many=True)
         return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def candidate_evaluation(self, request):
+        """
+        Endpoint spécialisé pour l'évaluation d'un candidat par campagne.
+        Format: [{"question": "text", "video_url": "url", "score": 0, "recruiter_notes": ""}]
+        """
+        campaign_id = request.query_params.get('campaign_id')
+        candidate_id = request.query_params.get('candidate_id')
+        
+        if not campaign_id or not candidate_id:
+            return Response({
+                "detail": "Les paramètres campaign_id et candidate_id sont requis."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            campaign = InterviewCampaign.objects.get(pk=campaign_id)
+            candidate = CustomUser.objects.get(pk=candidate_id)
+        except InterviewCampaign.DoesNotExist:
+            return Response({
+                "detail": "Campagne introuvable."
+            }, status=status.HTTP_404_NOT_FOUND)
+        except CustomUser.DoesNotExist:
+            return Response({
+                "detail": "Candidat introuvable."
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Vérifier les permissions
+        if request.user != campaign.job_offer.recruiter and not request.user.is_staff:
+            return Response({
+                "detail": "Non autorisé à voir les réponses de cette campagne."
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Récupérer les réponses du candidat pour cette campagne
+        answers = InterviewAnswer.objects.filter(
+            question__campaign=campaign,
+            candidate=candidate,
+            status='completed'
+        ).select_related('question').order_by('question__order')
+        
+        # Formater les données selon le format demandé
+        evaluation_data = []
+        for answer in answers:
+            # Vérifier que la vidéo existe sur Cloudinary
+            video_url = None
+            if answer.cloudinary_secure_url:
+                try:
+                    from .cloudinary_service import CloudinaryVideoService
+                    if answer.cloudinary_public_id:
+                        video_info = CloudinaryVideoService.get_video_info(answer.cloudinary_public_id)
+                        if video_info:
+                            video_url = answer.cloudinary_secure_url
+                        else:
+                            # Nettoyer l'enregistrement si la vidéo n'existe plus
+                            answer.cloudinary_public_id = None
+                            answer.cloudinary_url = None
+                            answer.cloudinary_secure_url = None
+                            answer.status = 'deleted'
+                            answer.save()
+                            continue
+                    else:
+                        video_url = answer.cloudinary_secure_url
+                except Exception as e:
+                    logger.error(f"Erreur vérification Cloudinary pour réponse {answer.id}: {e}")
+                    video_url = answer.cloudinary_secure_url
+            
+            if video_url:
+                evaluation_data.append({
+                    "id": answer.id,
+                    "question": answer.question.text,
+                    "video_url": video_url,
+                    "score": answer.score,
+                    "recruiter_notes": answer.recruiter_notes or "",
+                    "duration": answer.duration,
+                    "created_at": answer.created_at.isoformat(),
+                    "question_order": answer.question.order
+                })
+        
+        return Response(evaluation_data)
+    
+    @action(detail=True, methods=['patch'], permission_classes=[permissions.IsAuthenticated])
+    def update_evaluation(self, request, pk=None):
+        """
+        Met à jour le score et les notes du recruteur pour une réponse spécifique.
+        """
+        try:
+            answer = self.get_object()
+        except InterviewAnswer.DoesNotExist:
+            return Response({
+                "detail": "Réponse introuvable."
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Vérifier les permissions
+        if request.user != answer.question.campaign.job_offer.recruiter and not request.user.is_staff:
+            return Response({
+                "detail": "Non autorisé à modifier cette évaluation."
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Mettre à jour les champs autorisés
+        score = request.data.get('score')
+        recruiter_notes = request.data.get('recruiter_notes')
+        
+        if score is not None:
+            if not isinstance(score, int) or score < 0 or score > 100:
+                return Response({
+                    "detail": "Le score doit être un entier entre 0 et 100."
+                }, status=status.HTTP_400_BAD_REQUEST)
+            answer.score = score
+        
+        if recruiter_notes is not None:
+            answer.recruiter_notes = recruiter_notes
+        
+        answer.save()
+        
+        return Response({
+            "id": answer.id,
+            "score": answer.score,
+            "recruiter_notes": answer.recruiter_notes,
+            "updated_at": answer.updated_at.isoformat()
+        })
 
 
 # ========== Vues IA pour Génération de Questions ==========

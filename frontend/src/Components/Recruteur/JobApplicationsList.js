@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, Table, Badge, Button, Form, Row, Col } from 'react-bootstrap';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { formatDate } from '../../utils/dateUtils';
 import './RecruiterStyles.css';
@@ -11,6 +11,7 @@ const JobApplicationsList = ({ jobOfferId }) => {
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all');
   const { id } = useParams(); // Pour le cas où l'ID est passé via l'URL
+  const navigate = useNavigate();
 
   // Utiliser l'ID passé en prop ou via l'URL
   const effectiveJobOfferId = jobOfferId || id;
@@ -123,6 +124,10 @@ Expire le: ${new Date(data.expires_at).toLocaleString('fr-FR')}`;
       if (status === 400) return alert(detail || "Requête invalide.");
       alert("Erreur lors de l'envoi de l'invitation. Veuillez réessayer.");
     }
+  };
+
+  const handleViewDetails = (applicationId) => {
+    navigate(`/recruiter/interview-details/${applicationId}`);
   };
 
   // Affichage visuel du statut d'invitation
@@ -272,7 +277,11 @@ Expire le: ${new Date(data.expires_at).toLocaleString('fr-FR')}`;
                     <div className="actions-row">
                       {/* 1) Ligne des boutons d'action */}
                       <div className="actions-buttons">
-                        <Button variant="outline-primary" size="sm" disabled>
+                        <Button 
+                          variant="outline-primary" 
+                          size="sm" 
+                          onClick={() => handleViewDetails(application.id)}
+                        >
                           <i className="bi bi-eye me-1"></i> Détails
                         </Button>
 

@@ -225,15 +225,7 @@ import cloudinary
 import cloudinary.uploader
 import cloudinary.api
 
-# Configuration directe avec les credentials de la mémoire
-cloudinary.config(
-    cloud_name="dwcb0d2qk",
-    api_key="694818355164956", 
-    api_secret="wNqgPz14OtzDzx67EHib4mVtLRw",
-    secure=True
-)
-
-# Fallback avec variables d'environnement si disponibles
+# Configuration Cloudinary - temporaire avec fallback
 if CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET:
     cloudinary.config(
         cloud_name=CLOUDINARY_CLOUD_NAME,
@@ -241,3 +233,13 @@ if CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET:
         api_secret=CLOUDINARY_API_SECRET,
         secure=True
     )
+    print("☁️ Cloudinary configuré via les variables d'environnement.")
+else:
+    # Fallback temporaire avec credentials directs
+    cloudinary.config(
+        cloud_name="dwcb0d2qk",
+        api_key="694818355164956", 
+        api_secret="wNqgPz14OtzDzx67EHib4mVtLRw",
+        secure=True
+    )
+    print("⚠️ Cloudinary configuré avec credentials de fallback.")

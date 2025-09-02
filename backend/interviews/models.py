@@ -105,17 +105,41 @@ class InterviewAnswer(models.Model):
         verbose_name="Candidat"
     )
     
-    # Fichier vidéo de la réponse
+    # Fichier vidéo de la réponse (stockage local, maintenant optionnel)
     video_file = models.FileField(
         upload_to='interview_answers/%Y/%m/%d/', 
-        verbose_name="Fichier vidéo",
-        help_text="Réponse vidéo du candidat",
+        verbose_name="Fichier vidéo (local)",
+        help_text="Réponse vidéo du candidat (legacy, si pas sur Cloudinary)",
+        null=True,
+        blank=True
+    )
+
+    # Champs pour l'intégration Cloudinary
+    cloudinary_public_id = models.CharField(
+        max_length=255, 
+        blank=True, 
+        null=True, 
+        verbose_name="Cloudinary Public ID"
+    )
+    cloudinary_url = models.URLField(
+        max_length=512, 
+        blank=True, 
+        null=True, 
+        verbose_name="Cloudinary URL"
+    )
+    cloudinary_secure_url = models.URLField(
+        max_length=512, 
+        blank=True, 
+        null=True, 
+        verbose_name="Cloudinary Secure URL"
     )
     
     # Métadonnées de l'enregistrement
     duration = models.PositiveIntegerField(
         verbose_name="Durée (secondes)",
-        help_text="Durée de l'enregistrement en secondes"
+        help_text="Durée de l'enregistrement en secondes",
+        null=True, 
+        blank=True
     )
     file_size = models.PositiveIntegerField(
         verbose_name="Taille du fichier (bytes)",

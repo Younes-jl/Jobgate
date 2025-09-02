@@ -124,9 +124,9 @@ const EntretienPage = () => {
           setTimeLeft(prev => prev - 1);
         }, 1000);
       } else if (currentPhase === 'recording' && timeLeft === 0) {
-        // Fin de l'enregistrement, passer à la question suivante
+        // Fin de l'enregistrement automatique
         stopRecording();
-        nextQuestion();
+        // nextQuestion() sera appelé dans recorder.onstop après sauvegarde réussie
       }
     }
 
@@ -167,7 +167,15 @@ const EntretienPage = () => {
           });
           
           if (blob.size > 0) {
-            await saveVideoAnswer(blob, currentQuestionIndex, actualDuration);
+            try {
+              await saveVideoAnswer(blob, currentQuestionIndex, actualDuration);
+              // Si la sauvegarde réussit, passer à la question suivante
+              nextQuestion();
+            } catch (error) {
+              console.error('Échec sauvegarde, arrêt de la progression');
+              // L'erreur est déjà gérée dans saveVideoAnswer
+              // Ne pas appeler nextQuestion() pour arrêter la progression
+            }
           } else {
             console.error('Blob vide généré');
             setError('Erreur d\'enregistrement: fichier vide. Veuillez réessayer.');
@@ -204,6 +212,18 @@ const EntretienPage = () => {
     try {
       const currentQuestion = questions[questionIndex];
       
+      if (!currentQuestion || !currentQuestion.id) {
+        throw new Error('Question invalide ou ID manquant');
+      }
+      
+      if (!token) {
+        throw new Error('Token candidat manquant');
+      }
+      
+      if (!videoBlob || videoBlob.size === 0) {
+        throw new Error('Fichier vidéo vide ou invalide');
+      }
+      
       // Créer les données du formulaire pour Cloudinary
       const formData = new FormData();
       
@@ -216,41 +236,71 @@ const EntretienPage = () => {
       formData.append('question_id', currentQuestion.id);
       formData.append('candidate_token', token);
       
-      console.log('Upload vidéo vers Cloudinary...', {
+      console.log('=== DÉBUT UPLOAD VIDÉO ===');
+      console.log('Paramètres upload:', {
         question_id: currentQuestion.id,
         duration: duration,
         file_size: videoBlob.size,
-        token: token
+        file_name: videoFile.name,
+        token_length: token.length
       });
       
       // Upload vers Cloudinary via notre API
       const cloudinaryResponse = await api.post('/interviews/videos/upload/', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
-        }
+        },
+        timeout: 60000 // 60 secondes timeout
       });
       
-      console.log('Vidéo uploadée sur Cloudinary:', cloudinaryResponse.data);
+      console.log('=== RÉPONSE CLOUDINARY ===');
+      console.log('Status:', cloudinaryResponse.status);
+      console.log('Data:', cloudinaryResponse.data);
       
-      // La réponse est déjà sauvegardée par l'upload Cloudinary
-      if (cloudinaryResponse.data.answer_saved_to_db) {
-        console.log('Réponse sauvegardée avec succès via Cloudinary upload');
-        return cloudinaryResponse.data;
-      } else {
-        console.warn('Vidéo uploadée mais réponse non sauvegardée en BDD');
-        return cloudinaryResponse.data;
+      // Vérifier que l'upload a réussi
+      if (cloudinaryResponse.status !== 200 && cloudinaryResponse.status !== 201) {
+        throw new Error(`Échec upload: status ${cloudinaryResponse.status}`);
       }
       
-    } catch (error) {
-      console.error('Erreur lors de la sauvegarde de la réponse:', error);
-      console.error('Détails:', {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message
-      });
+      // Vérifier la présence des URLs Cloudinary
+      const responseData = cloudinaryResponse.data;
+      if (!responseData.cloudinary_url && !responseData.secure_url) {
+        throw new Error('URLs Cloudinary manquantes dans la réponse');
+      }
       
-      // Ne pas bloquer la progression même en cas d'erreur
-      setError('Erreur lors de la sauvegarde de votre réponse. Veuillez réessayer.');
+      console.log('=== UPLOAD RÉUSSI ===');
+      console.log('Cloudinary URL:', responseData.cloudinary_url);
+      console.log('Secure URL:', responseData.secure_url);
+      
+      return responseData;
+      
+    } catch (error) {
+      console.error('=== ERREUR SAUVEGARDE VIDÉO ===');
+      console.error('Type d\'erreur:', error.name);
+      console.error('Message:', error.message);
+      console.error('Status HTTP:', error.response?.status);
+      console.error('Données erreur:', error.response?.data);
+      console.error('Stack trace:', error.stack);
+      
+      // Déterminer le message d'erreur approprié
+      let errorMessage = 'Erreur lors de la sauvegarde de votre réponse.';
+      
+      if (error.response?.status === 400) {
+        errorMessage = 'Données invalides. Vérifiez votre connexion et réessayez.';
+      } else if (error.response?.status === 401) {
+        errorMessage = 'Session expirée. Veuillez actualiser la page.';
+      } else if (error.response?.status === 413) {
+        errorMessage = 'Fichier vidéo trop volumineux. Réduisez la durée d\'enregistrement.';
+      } else if (error.response?.status >= 500) {
+        errorMessage = 'Erreur serveur. Veuillez réessayer dans quelques instants.';
+      } else if (error.message.includes('timeout')) {
+        errorMessage = 'Timeout d\'upload. Vérifiez votre connexion internet.';
+      }
+      
+      setError(`${errorMessage}\nSi vous pensez qu'il s'agit d'une erreur, veuillez contacter le recruteur.`);
+      
+      // Relancer l'erreur pour arrêter la progression
+      throw error;
     }
   };
 

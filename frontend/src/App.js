@@ -12,6 +12,7 @@ import LoginPage from './Components/auth/LoginPage';
 import RecruiterDashboard from './Components/Recruteur/RecruiterDashboard';
 import CreateOfferWithCampaign from './Components/Recruteur/CreateOfferWithCampaign';
 import RecruiterJobOfferDetails from './Components/Recruteur/JobOfferDetails';
+import InterviewDetails from './Components/Recruteur/InterviewDetails';
 import CandidateDashboard from './Components/Candidat/CandidateDashboard';
 import JobOfferDetails from './Components/Candidat/JobOfferDetails';
 import EntretienPage from './Components/Entretien/entretienDetails';
@@ -174,6 +175,13 @@ function AppContent() {
                         <Route path="/offers/:id" element={
                             user && user.role === 'RECRUTEUR' ? 
                             <RecruiterJobOfferDetails /> : 
+                            <Navigate to="/" replace />
+                        } />
+                        
+                        {/* Détails d'entretien pour évaluation (protégé) */}
+                        <Route path="/recruiter/interview-details/:applicationId" element={
+                            user && user.role === 'RECRUTEUR' ? 
+                            <InterviewDetails /> : 
                             <Navigate to="/" replace />
                         } />
                         

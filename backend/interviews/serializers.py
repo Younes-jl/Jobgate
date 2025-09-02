@@ -83,6 +83,7 @@ class JobApplicationSerializer(serializers.ModelSerializer):
     job_title = serializers.SerializerMethodField()
     status_display = serializers.SerializerMethodField()
     candidate = UserSerializer(read_only=True)  # Utiliser UserSerializer pour inclure plus de détails
+    job_offer = JobOfferSerializer(read_only=True)  # Inclure les détails complets de l'offre
     
     class Meta:
         model = JobApplication

@@ -49,23 +49,8 @@ class CloudinaryVideoService:
         Returns:
             dict: Résultat de l'upload avec URLs et métadonnées
         """
-        # Configuration directe dans la méthode pour garantir l'initialisation
-        try:
-            import cloudinary
-            import cloudinary.uploader
-            cloudinary.config(
-                cloud_name="dwcb0d2qk",
-                api_key="694818355164956", 
-                api_secret="wNqgPz14OtzDzx67EHib4mVtLRw",
-                secure=True
-            )
-            logger.info("Cloudinary configuré directement dans upload_video")
-        except Exception as e:
-            logger.error(f"Erreur configuration Cloudinary: {e}")
-            return None
-        
         if not CloudinaryVideoService.is_configured():
-            logger.error("Cloudinary n'est pas configuré correctement")
+            logger.error("Cloudinary n'est pas configuré. Vérifiez les variables d'environnement.")
             return None
         
         try:
