@@ -47,8 +47,8 @@ class InterviewCampaign(models.Model):
     description = models.TextField(verbose_name="Description")
     job_offer = models.ForeignKey(JobOffer, on_delete=models.CASCADE, related_name="campaigns", verbose_name="Offre d'emploi")
     
-    start_date = models.DateField(verbose_name="Date de début")
-    end_date = models.DateField(verbose_name="Date de fin")
+    start_date = models.DateField(verbose_name="Date de début", null=True, blank=True)
+    end_date = models.DateField(verbose_name="Date de fin", null=True, blank=True)
     
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Date de création")
     active = models.BooleanField(default=True, verbose_name="Active")
@@ -63,8 +63,16 @@ class InterviewCampaign(models.Model):
     
     def is_active(self):
         """Vérifie si la campagne est active selon les dates et le statut"""
+        if not self.active:
+            return False
+        
         today = timezone.now().date()
-        return self.active and self.start_date <= today <= self.end_date
+        
+        # Si pas de dates définies, la campagne est active si le flag active est True
+        if not self.start_date or not self.end_date:
+            return True
+            
+        return self.start_date <= today <= self.end_date
 
 class InterviewQuestion(models.Model):
     """
@@ -226,8 +234,8 @@ class InterviewAnswer(models.Model):
 
 
 def default_link_expiration():
-    """Retourne une date d'expiration par défaut (7 jours)."""
-    return timezone.now() + timedelta(days=7)
+    """Retourne une date d'expiration par défaut (24 heures)."""
+    return timezone.now() + timedelta(hours=24)
 
 
 class CampaignLink(models.Model):

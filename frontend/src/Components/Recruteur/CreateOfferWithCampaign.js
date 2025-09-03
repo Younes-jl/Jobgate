@@ -33,8 +33,6 @@ const CreateOfferWithCampaign = () => {
     const [campaign, setCampaign] = useState({
         title: '',
         description: '',
-        start_date: '',
-        end_date: '',
         active: true,
         questions: []
     });
@@ -268,7 +266,7 @@ const CreateOfferWithCampaign = () => {
             }));
         } else if (step === 2) {
             // Validation de la campagne
-            if (!campaign.title || !campaign.description || !campaign.start_date || !campaign.end_date) {
+            if (!campaign.title || !campaign.description) {
                 setError('Veuillez remplir tous les champs obligatoires de la campagne.');
                 return;
             }
@@ -491,32 +489,6 @@ const CreateOfferWithCampaign = () => {
                 />
             </div>
             
-            <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
-                <div style={{ flex: 1 }}>
-                    <label>Date de début*</label>
-                    <input
-                        type="date"
-                        name="start_date"
-                        value={campaign.start_date}
-                        onChange={handleCampaignChange}
-                        style={inputStyle}
-                        required
-                    />
-                </div>
-                
-                <div style={{ flex: 1 }}>
-                    <label>Date de fin*</label>
-                    <input
-                        type="date"
-                        name="end_date"
-                        value={campaign.end_date}
-                        onChange={handleCampaignChange}
-                        style={inputStyle}
-                        required
-                    />
-                </div>
-            </div>
-            
             <div style={{ marginBottom: '30px' }}>
                 <label style={{ display: 'flex', alignItems: 'center' }}>
                     <input
@@ -536,7 +508,7 @@ const CreateOfferWithCampaign = () => {
                 {/* Section IA Améliorée */}
                 <div style={aiSectionStyle}>
                     <div style={{ display: 'flex', alignItems: 'center', marginBottom: '15px' }}>
-                        <h4 style={{ margin: 0, color: '#1976d2', fontSize: '18px' }}>
+                        <h4 style={{ margin: '0', color: '#1976d2', fontSize: '18px' }}>
                             🤖 Assistant IA - Génération Intelligente
                         </h4>
                         <div style={{ 
