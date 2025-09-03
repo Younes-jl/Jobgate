@@ -330,6 +330,18 @@ class CampaignLink(models.Model):
             return False
         if self.is_expired:
             return False
+        
+        # Vérifier si le candidat a déjà passé l'entretien pour cette offre
+        if self.candidate:
+            # Vérifier s'il existe déjà des réponses pour cette campagne/candidat
+            existing_answers = InterviewAnswer.objects.filter(
+                question__campaign=self.campaign,
+                candidate=self.candidate
+            ).exists()
+            
+            if existing_answers:
+                return False
+        
         if self.uses_count >= self.max_uses:
             return False
         return True

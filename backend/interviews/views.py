@@ -59,7 +59,9 @@ class CloudinaryVideoUploadView(APIView):
         # Vérifier que le token correspond à un lien valide
         try:
             link = CampaignLink.objects.get(token=candidate_token)
-            if not link.is_valid:
+            # Pour l'upload vidéo, on vérifie seulement l'expiration et la révocation
+            # Pas la validation complète car le candidat peut être en train de passer l'entretien
+            if link.revoked or link.is_expired:
                 return Response({
                     "error": "Token candidat invalide ou expiré."
                 }, status=status.HTTP_403_FORBIDDEN)
@@ -559,6 +561,9 @@ class CampaignLinkViewSet(viewsets.ViewSet):
         except CampaignLink.DoesNotExist:
             return Response({"valid": False, "detail": "Token invalide"}, status=status.HTTP_404_NOT_FOUND)
 
+        # Ne pas marquer automatiquement comme utilisé ici
+        # Le lien sera marqué comme utilisé seulement quand le candidat soumet une réponse
+
         data = {
             "valid": link.is_valid,
             "expires_at": link.expires_at,
@@ -787,6 +792,18 @@ class InterviewAnswerViewSet(viewsets.ModelViewSet):
                     status='completed'
                 )
                 logger.info(f"✅ Réponse créée avec succès: ID {answer.id}")
+                
+                # Marquer le lien comme utilisé maintenant que l'entretien est passé
+                try:
+                    link = CampaignLink.objects.get(
+                        campaign=question.campaign,
+                        candidate=candidate
+                    )
+                    if not link.used_at:  # Marquer seulement si pas encore marqué
+                        link.mark_used()
+                        logger.info(f"🔒 Lien marqué comme utilisé pour candidat {candidate.id}")
+                except CampaignLink.DoesNotExist:
+                    logger.warning(f"Aucun lien trouvé pour candidat {candidate.id} et campagne {question.campaign.id}")
                 
                 serializer = self.get_serializer(answer)
                 return Response(serializer.data, status=status.HTTP_201_CREATED)

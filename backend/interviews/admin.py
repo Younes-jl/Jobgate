@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import JobOffer, InterviewCampaign, InterviewQuestion, CampaignLink, InterviewAnswer
+from .models import JobOffer, InterviewCampaign, InterviewQuestion, CampaignLink, InterviewAnswer, JobApplication
 
 class InterviewQuestionInline(admin.TabularInline):
     model = InterviewQuestion
@@ -90,3 +90,52 @@ class InterviewAnswerAdmin(admin.ModelAdmin):
         return "Pas de vidéo"
     video_link.allow_tags = True
     video_link.short_description = "Lien vidéo"
+
+
+@admin.register(JobApplication)
+class JobApplicationAdmin(admin.ModelAdmin):
+    list_display = (
+        'candidate', 'job_offer_title', 'status', 'created_at', 'updated_at'
+    )
+    list_filter = ('status', 'created_at', 'updated_at', 'job_offer__recruiter')
+    search_fields = (
+        'candidate__username', 'candidate__email', 
+        'job_offer__title', 'job_offer__recruiter__username'
+    )
+    readonly_fields = ('created_at', 'updated_at')
+    
+    fieldsets = (
+        ('Informations principales', {
+            'fields': ('job_offer', 'candidate', 'status')
+        }),
+        ('Métadonnées', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def job_offer_title(self, obj):
+        """Titre de l'offre d'emploi"""
+        return obj.job_offer.title
+    job_offer_title.short_description = "Offre d'emploi"
+    
+    # Actions personnalisées
+    actions = ['mark_as_accepted', 'mark_as_rejected', 'mark_as_under_review']
+    
+    def mark_as_accepted(self, request, queryset):
+        """Marquer les candidatures comme acceptées"""
+        updated = queryset.update(status='accepted')
+        self.message_user(request, f'{updated} candidature(s) marquée(s) comme acceptée(s).')
+    mark_as_accepted.short_description = "Marquer comme accepté"
+    
+    def mark_as_rejected(self, request, queryset):
+        """Marquer les candidatures comme rejetées"""
+        updated = queryset.update(status='rejected')
+        self.message_user(request, f'{updated} candidature(s) marquée(s) comme rejetée(s).')
+    mark_as_rejected.short_description = "Marquer comme rejeté"
+    
+    def mark_as_under_review(self, request, queryset):
+        """Marquer les candidatures comme en cours d'évaluation"""
+        updated = queryset.update(status='under_review')
+        self.message_user(request, f'{updated} candidature(s) marquée(s) comme en cours d\'évaluation.')
+    mark_as_under_review.short_description = "Marquer comme en cours d'évaluation"
