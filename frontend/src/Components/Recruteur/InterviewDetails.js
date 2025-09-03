@@ -28,6 +28,17 @@ const InterviewDetails = () => {
     fetchInterviewData();
   }, [applicationId]);
 
+  // Effect pour recharger la vidéo quand la question change
+  useEffect(() => {
+    if (videoRef.current && candidateAnswers.length > 0) {
+      const currentAnswer = candidateAnswers[currentQuestionIndex];
+      if (currentAnswer && currentAnswer.video_url) {
+        videoRef.current.load(); // Force le rechargement de la vidéo
+        setVideoPlaying(false); // Reset l'état de lecture
+      }
+    }
+  }, [currentQuestionIndex, candidateAnswers]);
+
   const fetchInterviewData = async () => {
     try {
       setLoading(true);
@@ -379,6 +390,7 @@ const InterviewDetails = () => {
                   }}>
                     <video 
                       ref={videoRef}
+                      key={`video-${currentQuestionIndex}-${currentAnswer.id}`}
                       controls 
                       style={{ 
                         position: 'absolute',
