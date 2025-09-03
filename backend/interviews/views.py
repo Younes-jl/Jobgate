@@ -331,6 +331,12 @@ class InterviewCampaignViewSet(viewsets.ModelViewSet):
         try:
             campaign = InterviewCampaign.objects.get(pk=pk)
             questions = campaign.questions.all().order_by('order')
+            logger.info(f"=== DEBUG BACKEND QUESTIONS ===")
+            logger.info(f"Campaign ID: {pk}")
+            logger.info(f"Campaign title: {campaign.title}")
+            logger.info(f"Questions count: {questions.count()}")
+            logger.info(f"Questions IDs: {[q.id for q in questions]}")
+            logger.info(f"Questions texts: {[q.text[:50] + '...' if len(q.text) > 50 else q.text for q in questions]}")
             serializer = InterviewQuestionSerializer(questions, many=True)
             return Response(serializer.data)
         except InterviewCampaign.DoesNotExist:

@@ -135,7 +135,7 @@ const EntretienPage = () => {
     };
     
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recordingStage, currentPhase, timeLeft, currentQuestionIndex, questions, interviewStarted]);
+  }, [recordingStage, currentPhase, timeLeft, currentQuestionIndex, interviewStarted]);
 
   // Fonction pour démarrer l'enregistrement
   const startRecording = async () => {
@@ -168,9 +168,13 @@ const EntretienPage = () => {
           
           if (blob.size > 0) {
             try {
-              await saveVideoAnswer(blob, currentQuestionIndex, actualDuration);
+              const uploadResult = await saveVideoAnswer(blob, currentQuestionIndex, actualDuration);
+              console.log('=== UPLOAD TERMINÉ, PASSAGE À LA QUESTION SUIVANTE ===');
+              console.log('Upload result:', uploadResult);
               // Si la sauvegarde réussit, passer à la question suivante
-              nextQuestion();
+              setTimeout(() => {
+                nextQuestion();
+              }, 100); // Petit délai pour éviter les conflits d'état
             } catch (error) {
               console.error('Échec sauvegarde, arrêt de la progression');
               // L'erreur est déjà gérée dans saveVideoAnswer
@@ -306,19 +310,29 @@ const EntretienPage = () => {
 
   // Fonction pour passer à la question suivante
   const nextQuestion = () => {
-    if (currentQuestionIndex < questions.length - 1) {
-      setCurrentQuestionIndex(prev => prev + 1);
-      setCurrentPhase('preparation');
-      setTimeLeft(30); // 30 secondes de préparation
-    } else {
-      // Fin de l'entretien - fermer la caméra et afficher message de fin
-      if (videoStream) {
-        videoStream.getTracks().forEach(track => track.stop());
+    setCurrentQuestionIndex(prevIndex => {
+      console.log('=== NEXT QUESTION APPELÉE ===');
+      console.log('Current question index:', prevIndex);
+      console.log('Total questions:', questions.length);
+      
+      if (prevIndex < questions.length - 1) {
+        const nextIndex = prevIndex + 1;
+        console.log('Passage à la question suivante:', nextIndex);
+        setCurrentPhase('preparation');
+        setTimeLeft(30); // 30 secondes de préparation
+        return nextIndex;
+      } else {
+        console.log('Fin de l\'entretien - toutes les questions terminées');
+        // Fin de l'entretien - fermer la caméra et afficher message de fin
+        if (videoStream) {
+          videoStream.getTracks().forEach(track => track.stop());
+        }
+        setVideoStream(null);
+        setRecordingStage(false);
+        setInterviewStarted(true); // Afficher le message de fin
+        return prevIndex;
       }
-      setVideoStream(null);
-      setRecordingStage(false);
-      setInterviewStarted(true); // Afficher le message de fin
-    }
+    });
   };
 
   const handleStartInterview = () => {
@@ -375,7 +389,11 @@ const EntretienPage = () => {
       
       // Récupérer les questions de la campagne
       const questionsResponse = await api.get(`/interviews/campaigns/${campaignData.id}/questions/`);
+      console.log('=== DEBUG QUESTIONS ===');
+      console.log('Campaign ID:', campaignData.id);
       console.log('Questions récupérées:', questionsResponse.data);
+      console.log('Nombre de questions:', questionsResponse.data?.length);
+      console.log('Questions détaillées:', JSON.stringify(questionsResponse.data, null, 2));
       setQuestions(questionsResponse.data);
       
       // Arrêter le loading avant de continuer
@@ -637,8 +655,11 @@ const EntretienPage = () => {
 
   // Interface d'enregistrement des réponses
   if (recordingStage && !interviewStarted) {
-    console.log('=== RENDU: Interface d\'enregistrement ===');
-    console.log('recordingStage:', recordingStage, 'interviewStarted:', interviewStarted);
+    // Logs réduits pour éviter le spam
+    if (currentQuestionIndex === 0 && currentPhase === 'preparation') {
+      console.log('=== RENDU: Interface d\'enregistrement ===');
+      console.log('recordingStage:', recordingStage, 'interviewStarted:', interviewStarted);
+    }
     
     const currentQuestion = questions[currentQuestionIndex];
     
@@ -729,7 +750,7 @@ const EntretienPage = () => {
                     className="px-4"
                     onClick={() => {
                       stopRecording();
-                      nextQuestion();
+                      // nextQuestion sera appelé automatiquement dans recorder.onstop
                     }}
                   >
                     <i className="bi bi-stop-circle me-2"></i>
