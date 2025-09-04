@@ -24,9 +24,9 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     command: >
-      sh -c "./wait-for-db.sh db &&
-             python manage.py migrate &&
-             python manage.py runserver 0.0.0.0:8000"
+      sh -c "sleep 10 &&
+      python manage.py migrate &&
+      python manage.py runserver 0.0.0.0:8000"
     volumes:
       - ./backend:/app  # Synchronise le code en direct
       # Éviter de synchroniser les fichiers cache et autres

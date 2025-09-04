@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Card, Table, Badge, Button, Form, Row, Col } from 'react-bootstrap';
+import { Card, Table, Badge, Button, Form, Row, Col, Modal } from 'react-bootstrap';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { formatDate } from '../../utils/dateUtils';
@@ -10,6 +10,7 @@ const JobApplicationsList = ({ jobOfferId }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all');
+  const [confirmationModal, setConfirmationModal] = useState({ show: false, candidate: null, action: null });
   const { id } = useParams(); // Pour le cas où l'ID est passé via l'URL
   const navigate = useNavigate();
 
@@ -289,47 +290,36 @@ Expire le: ${new Date(data.expires_at).toLocaleString('fr-FR')}`;
                           <Button
                             className="btn-invite"
                             size="sm"
-                            onClick={() => handleInviteCandidate(
-                              application.id,
-                              application.candidate?.username || 
-                              (application.candidate?.email && application.candidate.email.split('@')[0]) || 
-                              'ce candidat'
-                            )}
+                            onClick={() => setConfirmationModal({
+                              show: true,
+                              candidate: application.candidate,
+                              action: 'invite',
+                              applicationId: application.id
+                            })}
                           >
                             <i className="bi bi-send me-1"></i> Inviter
                           </Button>
                         )}
 
-                        {application.status === 'under_review' && (
+                        {(application.status === 'under_review' || 
+                          application.status === 'accepted' || 
+                          application.status === 'rejected' || 
+                          application.status === 'technical_interview') && (
                           <Button
                             className="btn-reinvite"
                             size="sm"
-                            onClick={() => handleInviteCandidate(
-                              application.id,
-                              application.candidate?.username || 
-                              (application.candidate?.email && application.candidate.email.split('@')[0]) || 
-                              'ce candidat'
-                            )}
+                            onClick={() => setConfirmationModal({
+                              show: true,
+                              candidate: application.candidate,
+                              action: 'reinvite',
+                              applicationId: application.id
+                            })}
                           >
                             <i className="bi bi-arrow-clockwise me-1"></i> Réinviter
                           </Button>
                         )}
                       </div>
 
-                      {/* 2) Sélecteur du statut */}
-                      <div>
-                        <Form.Select
-                          size="sm"
-                          className="actions-status-select shadow-sm"
-                          value={application.status}
-                          onChange={(e) => handleUpdateStatus(application.id, e.target.value)}
-                        >
-                          <option value="pending">En attente</option>
-                          <option value="under_review">En cours d'examen</option>
-                          <option value="accepted">Accepter</option>
-                          <option value="rejected">Rejeter</option>
-                        </Form.Select>
-                      </div>
                     </div>
                   </td>
                 </tr>
@@ -342,6 +332,150 @@ Expire le: ${new Date(data.expires_at).toLocaleString('fr-FR')}`;
           </div>
         )}
       </Card.Body>
+
+      {/* Modal de confirmation d'invitation */}
+      <Modal show={confirmationModal.show} onHide={() => setConfirmationModal({ show: false, candidate: null, action: null })} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>
+            <i className="bi bi-envelope-check me-2"></i>
+            Confirmation d'invitation
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div className="text-center mb-4">
+            <div className="candidate-avatar mb-3">
+              <i className="bi bi-person-circle" style={{ fontSize: '3rem', color: '#6c757d' }}></i>
+            </div>
+            <h5 className="mb-3">
+              {confirmationModal.action === 'invite' ? 'Inviter ce candidat ?' : 'Réinviter ce candidat ?'}
+            </h5>
+          </div>
+          
+          {confirmationModal.candidate && (
+            <div className="candidate-info bg-light p-3 rounded mb-4">
+              <Row>
+                <Col md={6}>
+                  <div className="info-item mb-2">
+                    <i className="bi bi-person me-2 text-primary"></i>
+                    <strong>Nom:</strong> {confirmationModal.candidate.first_name} {confirmationModal.candidate.last_name}
+                  </div>
+                  <div className="info-item mb-2">
+                    <i className="bi bi-envelope me-2 text-primary"></i>
+                    <strong>Email:</strong> {confirmationModal.candidate.email}
+                  </div>
+                </Col>
+                <Col md={6}>
+                  <div className="info-item mb-2">
+                    <i className="bi bi-telephone me-2 text-primary"></i>
+                    <strong>Téléphone:</strong> {confirmationModal.candidate.phone || 'Non renseigné'}
+                  </div>
+                  <div className="info-item mb-2">
+                    <i className="bi bi-geo-alt me-2 text-primary"></i>
+                    <strong>Ville:</strong> {confirmationModal.candidate.city || 'Non renseignée'}
+                  </div>
+                </Col>
+              </Row>
+            </div>
+          )}
+          
+          <div className="alert alert-info">
+            <i className="bi bi-info-circle me-2"></i>
+            {confirmationModal.action === 'invite' 
+              ? 'Le candidat recevra un email avec les instructions pour passer l\'entretien vidéo.'
+              : 'Le candidat recevra un nouveau lien d\'invitation pour l\'entretien vidéo.'
+            }
+          </div>
+          
+          {/* Options avancées d'email */}
+          <div className="border rounded p-3 mb-3">
+            <h6 className="fw-bold mb-3">
+              <i className="bi bi-gear me-2"></i>
+              Options avancées d'email
+            </h6>
+            
+            <div className="mb-3">
+              <label className="form-label">Objet de l'email</label>
+              <input 
+                type="text" 
+                className="form-control" 
+                defaultValue={`Invitation à un entretien vidéo - ${confirmationModal.candidate?.first_name || ''}`}
+                placeholder="Personnaliser l'objet de l'email..."
+              />
+            </div>
+            
+            <div className="mb-3">
+              <label className="form-label">Message personnalisé (optionnel)</label>
+              <textarea 
+                className="form-control" 
+                rows="3"
+                placeholder="Ajouter un message personnalisé qui sera inclus dans l'email d'invitation..."
+              ></textarea>
+            </div>
+            
+            <div className="row">
+              <div className="col-md-6">
+                <div className="mb-3">
+                  <label className="form-label">Délai de réponse</label>
+                  <select className="form-control">
+                    <option value="7">7 jours (par défaut)</option>
+                    <option value="3">3 jours</option>
+                    <option value="5">5 jours</option>
+                    <option value="10">10 jours</option>
+                    <option value="14">14 jours</option>
+                  </select>
+                </div>
+              </div>
+              <div className="col-md-6">
+                <div className="mb-3">
+                  <label className="form-label">Priorité</label>
+                  <select className="form-control">
+                    <option value="normal">Normale</option>
+                    <option value="high">Haute</option>
+                    <option value="urgent">Urgente</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            
+            <div className="form-check mb-3">
+              <input className="form-check-input" type="checkbox" id="sendReminder" defaultChecked />
+              <label className="form-check-label" htmlFor="sendReminder">
+                Envoyer un rappel automatique 2 jours avant l'expiration
+              </label>
+            </div>
+            
+            <div className="form-check mb-3">
+              <input className="form-check-input" type="checkbox" id="copyManager" />
+              <label className="form-check-label" htmlFor="copyManager">
+                Envoyer une copie au hiring manager
+              </label>
+            </div>
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button 
+            variant="secondary" 
+            onClick={() => setConfirmationModal({ show: false, candidate: null, action: null })}
+          >
+            Annuler
+          </Button>
+          <Button 
+            variant="primary" 
+            onClick={() => {
+              handleInviteCandidate(
+                confirmationModal.applicationId,
+                confirmationModal.candidate?.username || 
+                (confirmationModal.candidate?.email && confirmationModal.candidate.email.split('@')[0]) || 
+                'ce candidat'
+              );
+              setConfirmationModal({ show: false, candidate: null, action: null });
+            }}
+          >
+            <i className="bi bi-send me-2"></i>
+            {confirmationModal.action === 'invite' ? 'Confirmer l\'invitation' : 'Confirmer la réinvitation'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </Card>
   );
 };

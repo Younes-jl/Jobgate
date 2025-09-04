@@ -21,8 +21,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Étape 6: Copier le reste du code de l'application
+# Étape 6: Installer curl pour les health checks
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+# Étape 7: Copier le reste du code de l'application
 COPY . .
 
-# Étape 7: Rendre le script d'attente exécutable
-RUN chmod +x wait-for-db.sh
+# Étape 8: Convertir les fins de ligne et rendre le script exécutable
+RUN sed -i 's/\r$//' wait-for-db.sh && chmod +x wait-for-db.sh

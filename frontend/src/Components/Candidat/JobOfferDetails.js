@@ -6,7 +6,7 @@ import { useAuth } from '../auth/useAuth';
 import JobApplicationsList from '../Recruteur/JobApplicationsList';
 import { formatDate } from '../../utils/dateUtils';
 import api from '../../services/api';
-import { Modal, Button } from 'react-bootstrap';
+import { Modal, Button, Form, Card, Container, Row, Col, Alert } from 'react-bootstrap';
 
 /**
  * Composant pour afficher les détails d'une offre d'emploi
@@ -23,6 +23,13 @@ const JobOfferDetails = () => {
   const [applicationSuccess, setApplicationSuccess] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [modalMessage, setModalMessage] = useState("");
+  const [showApplicationForm, setShowApplicationForm] = useState(false);
+  const [applicationData, setApplicationData] = useState({
+    diploma: '',
+    field: '',
+    experience: '',
+    motivation: ''
+  });
 
   useEffect(() => {
     // Récupérer les détails de l'offre d'emploi en utilisant toutes les offres
@@ -196,21 +203,38 @@ const JobOfferDetails = () => {
       {isCandidate && (
         <div className="job-offer-actions">
           {hasApplied ? (
-            <div className="alert alert-success">
-              Vous avez déjà postulé à cette offre. Consultez vos candidatures pour suivre son état.
-            </div>
+            <Alert variant="warning" className="d-flex align-items-center">
+              <i className="bi bi-exclamation-triangle-fill me-2"></i>
+              <div>
+                <strong>Candidature déjà envoyée</strong>
+                <div>Vous avez déjà postulé à cette offre. Une seule candidature par offre est autorisée.</div>
+              </div>
+            </Alert>
           ) : applicationSuccess ? (
-            <div className="alert alert-success">
+            <Alert variant="success">
+              <i className="bi bi-check-circle-fill me-2"></i>
               Votre candidature a été envoyée avec succès !
-            </div>
+            </Alert>
           ) : (
-            <button 
-              className="apply-button" 
-              onClick={handleApply}
+            <Button 
+              variant="primary" 
+              size="lg"
+              className="w-100"
+              onClick={() => setShowApplicationForm(true)}
               disabled={submitting}
             >
-              {submitting ? 'Envoi en cours...' : 'Postuler à cette offre'}
-            </button>
+              {submitting ? (
+                <>
+                  <span className="spinner-border spinner-border-sm me-2" />
+                  Envoi en cours...
+                </>
+              ) : (
+                <>
+                  <i className="bi bi-send me-2"></i>
+                  Postuler à cette offre
+                </>
+              )}
+            </Button>
           )}
         </div>
       )}
@@ -243,6 +267,127 @@ const JobOfferDetails = () => {
           <JobApplicationsList jobOfferId={jobOffer.id} />
         </div>
       )}
+
+      {/* Modal de candidature avec formulaire */}
+      <Modal
+        show={showApplicationForm}
+        onHide={() => setShowApplicationForm(false)}
+        size="lg"
+        centered
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>
+            <i className="bi bi-person-plus me-2"></i>
+            Postuler à: {jobOffer?.title}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form>
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>
+                    <i className="bi bi-mortarboard me-2"></i>
+                    Diplôme *
+                  </Form.Label>
+                  <Form.Select 
+                    value={applicationData.diploma}
+                    onChange={(e) => setApplicationData({...applicationData, diploma: e.target.value})}
+                    required
+                  >
+                    <option value="">Sélectionnez votre diplôme</option>
+                    <option value="bac">Baccalauréat</option>
+                    <option value="bac+2">Bac+2 (DUT, BTS)</option>
+                    <option value="bac+3">Bac+3 (Licence)</option>
+                    <option value="bac+5">Bac+5 (Master, Ingénieur)</option>
+                    <option value="doctorat">Doctorat</option>
+                    <option value="autre">Autre</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>
+                    <i className="bi bi-book me-2"></i>
+                    Filière *
+                  </Form.Label>
+                  <Form.Control
+                    type="text"
+                    placeholder="Ex: Informatique, Marketing, Finance..."
+                    value={applicationData.field}
+                    onChange={(e) => setApplicationData({...applicationData, field: e.target.value})}
+                    required
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+            
+            <Form.Group className="mb-3">
+              <Form.Label>
+                <i className="bi bi-briefcase me-2"></i>
+                Expérience professionnelle
+              </Form.Label>
+              <Form.Select 
+                value={applicationData.experience}
+                onChange={(e) => setApplicationData({...applicationData, experience: e.target.value})}
+              >
+                <option value="">Sélectionnez votre niveau d'expérience</option>
+                <option value="debutant">Débutant (0-1 an)</option>
+                <option value="junior">Junior (1-3 ans)</option>
+                <option value="confirme">Confirmé (3-5 ans)</option>
+                <option value="senior">Senior (5+ ans)</option>
+                <option value="expert">Expert (10+ ans)</option>
+              </Form.Select>
+            </Form.Group>
+            
+            <Form.Group className="mb-3">
+              <Form.Label>
+                <i className="bi bi-chat-heart me-2"></i>
+                Lettre de motivation *
+              </Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={4}
+                placeholder="Expliquez pourquoi vous souhaitez rejoindre cette entreprise et ce poste..."
+                value={applicationData.motivation}
+                onChange={(e) => setApplicationData({...applicationData, motivation: e.target.value})}
+                required
+              />
+              <Form.Text className="text-muted">
+                {applicationData.motivation.length}/500 caractères
+              </Form.Text>
+            </Form.Group>
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button 
+            variant="secondary" 
+            onClick={() => setShowApplicationForm(false)}
+          >
+            Annuler
+          </Button>
+          <Button 
+            variant="primary" 
+            onClick={() => {
+              handleApply();
+              setShowApplicationForm(false);
+            }}
+            disabled={!applicationData.diploma || !applicationData.field || !applicationData.motivation || submitting}
+          >
+            {submitting ? (
+              <>
+                <span className="spinner-border spinner-border-sm me-2" />
+                Envoi en cours...
+              </>
+            ) : (
+              <>
+                <i className="bi bi-send me-2"></i>
+                Envoyer ma candidature
+              </>
+            )}
+          </Button>
+        </Modal.Footer>
+      </Modal>
 
       {/* Modal pour afficher les messages de candidature */}
       <Modal
