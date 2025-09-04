@@ -24,6 +24,7 @@ const JobOfferDetails = () => {
   const [showModal, setShowModal] = useState(false);
   const [modalMessage, setModalMessage] = useState("");
   const [showApplicationForm, setShowApplicationForm] = useState(false);
+  const [checkingApplication, setCheckingApplication] = useState(false);
   const [applicationData, setApplicationData] = useState({
     diploma: '',
     field: '',
@@ -62,12 +63,15 @@ const JobOfferDetails = () => {
     const checkIfApplied = async () => {
       if (isAuthenticated && user.role === 'CANDIDAT' && jobOffer) {
         try {
+          setCheckingApplication(true);
           const response = await api.get('/interviews/applications/my/');
           const applications = response.data;
           const applied = applications.some(app => app.job_offer.id === parseInt(id));
           setHasApplied(applied);
         } catch (err) {
           console.error('Erreur lors de la vérification des candidatures:', err);
+        } finally {
+          setCheckingApplication(false);
         }
       }
     };
@@ -83,49 +87,63 @@ const JobOfferDetails = () => {
       return;
     }
 
+    // Vérification finale avant soumission
+    if (hasApplied) {
+      setModalMessage("Vous avez déjà postulé à cette offre. Une seule candidature par offre est autorisée.");
+      setShowModal(true);
+      return;
+    }
+
     setSubmitting(true);
     try {
       await api.post('/interviews/applications/', {
-        job_offer: jobOffer.id
+        job_offer: jobOffer.id,
+        diploma: applicationData.diploma,
+        field: applicationData.field,
+        experience: applicationData.experience,
+        motivation: applicationData.motivation
       });
       setHasApplied(true);
       setApplicationSuccess(true);
-      setModalMessage("Votre candidature a été envoyée avec succès !");
+      setModalMessage("🎉 Félicitations ! Votre candidature a été envoyée avec succès. Le recruteur examinera votre profil et vous contactera si votre candidature est retenue.");
       setShowModal(true);
+      // Réinitialiser le formulaire
+      setApplicationData({
+        diploma: '',
+        field: '',
+        experience: '',
+        motivation: ''
+      });
     } catch (error) {
       console.error('Erreur lors de la candidature:', error);
-      // Journalisation détaillée de l'erreur
       if (error.response) {
-        // La requête a été effectuée et le serveur a répondu avec un code d'état hors de la plage 2xx
-        console.error('Données de réponse d\'erreur:', error.response.data);
-        console.error('Statut d\'erreur:', error.response.status);
-        console.error('En-têtes de réponse d\'erreur:', error.response.headers);
-        
         if (error.response.data.detail === "Vous avez déjà postulé à cette offre.") {
           setHasApplied(true);
-          setModalMessage("Vous avez déjà postulé à cette offre.");
-          setShowModal(true);
+          setModalMessage("Vous avez déjà postulé à cette offre. Une seule candidature par offre est autorisée.");
         } else {
-          // Message d'erreur spécifique du serveur
           const errorMessage = error.response.data.detail || error.response.data.message || 
                               "Une erreur s'est produite lors de l'envoi de votre candidature. Veuillez réessayer.";
           setModalMessage(errorMessage);
-          setShowModal(true);
         }
       } else if (error.request) {
-        // La requête a été effectuée mais aucune réponse n'a été reçue
-        console.error('Requête sans réponse:', error.request);
         setModalMessage("Pas de réponse du serveur. Vérifiez votre connexion internet.");
-        setShowModal(true);
       } else {
-        // Une erreur s'est produite lors de la configuration de la requête
-        console.error('Erreur de configuration de la requête:', error.message);
         setModalMessage("Une erreur s'est produite lors de la configuration de la requête.");
-        setShowModal(true);
       }
+      setShowModal(true);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleShowApplicationForm = () => {
+    // Vérifier une dernière fois avant d'ouvrir le formulaire
+    if (hasApplied) {
+      setModalMessage("Vous avez déjà postulé à cette offre. Une seule candidature par offre est autorisée.");
+      setShowModal(true);
+      return;
+    }
+    setShowApplicationForm(true);
   };
 
   if (loading) {
@@ -202,25 +220,33 @@ const JobOfferDetails = () => {
       
       {isCandidate && (
         <div className="job-offer-actions">
-          {hasApplied ? (
-            <Alert variant="warning" className="d-flex align-items-center">
-              <i className="bi bi-exclamation-triangle-fill me-2"></i>
+          {checkingApplication ? (
+            <div className="text-center p-3">
+              <span className="spinner-border spinner-border-sm me-2" />
+              Vérification de votre statut de candidature...
+            </div>
+          ) : hasApplied ? (
+            <Alert variant="info" className="d-flex align-items-center">
+              <i className="bi bi-check-circle-fill me-2"></i>
               <div>
                 <strong>Candidature déjà envoyée</strong>
-                <div>Vous avez déjà postulé à cette offre. Une seule candidature par offre est autorisée.</div>
+                <div>Vous avez déjà postulé à cette offre le {new Date().toLocaleDateString('fr-FR')}. Une seule candidature par offre est autorisée. Le recruteur examinera votre candidature et vous contactera si elle est retenue.</div>
               </div>
             </Alert>
           ) : applicationSuccess ? (
-            <Alert variant="success">
+            <Alert variant="success" className="d-flex align-items-center">
               <i className="bi bi-check-circle-fill me-2"></i>
-              Votre candidature a été envoyée avec succès !
+              <div>
+                <strong>Candidature envoyée avec succès !</strong>
+                <div>Votre candidature a été transmise au recruteur. Vous recevrez une notification par email si votre profil est retenu pour un entretien.</div>
+              </div>
             </Alert>
           ) : (
             <Button 
               variant="primary" 
               size="lg"
               className="w-100"
-              onClick={() => setShowApplicationForm(true)}
+              onClick={handleShowApplicationForm}
               disabled={submitting}
             >
               {submitting ? (
@@ -396,14 +422,42 @@ const JobOfferDetails = () => {
         centered
       >
         <Modal.Header closeButton>
-          <Modal.Title>Information</Modal.Title>
+          <Modal.Title>
+            {applicationSuccess ? (
+              <>
+                <i className="bi bi-check-circle-fill text-success me-2"></i>
+                Candidature envoyée
+              </>
+            ) : hasApplied ? (
+              <>
+                <i className="bi bi-info-circle-fill text-info me-2"></i>
+                Candidature existante
+              </>
+            ) : (
+              <>
+                <i className="bi bi-exclamation-triangle-fill text-warning me-2"></i>
+                Information
+              </>
+            )}
+          </Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          {modalMessage}
+          <div className="text-center">
+            {modalMessage}
+          </div>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="primary" onClick={() => setShowModal(false)}>
-            Fermer
+          <Button 
+            variant={applicationSuccess ? "success" : hasApplied ? "info" : "primary"} 
+            onClick={() => {
+              setShowModal(false);
+              if (applicationSuccess) {
+                // Optionnel: rediriger vers le dashboard candidat
+                // navigate('/candidate/dashboard');
+              }
+            }}
+          >
+            {applicationSuccess ? "Parfait !" : "Compris"}
           </Button>
         </Modal.Footer>
       </Modal>

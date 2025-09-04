@@ -87,14 +87,19 @@ const JobApplicationsList = ({ jobOfferId }) => {
   // Envoyer une invitation d'entretien différé au candidat
   const handleInviteCandidate = async (applicationId, candidateName) => {
     try {
-      const confirmInvitation = window.confirm(
-        `Êtes-vous sûr de vouloir inviter ${candidateName} à l'entretien vidéo différé ?`
-      );
-      if (!confirmInvitation) return;
+      // Récupérer le délai sélectionné
+      const responseDeadlineElement = document.getElementById('responseDeadline');
+      const responseDeadlineHours = responseDeadlineElement ? parseInt(responseDeadlineElement.value) : 168;
 
-      // Créer/récupérer un lien unique côté backend
+      console.log('Données à envoyer:', {
+        application_id: applicationId,
+        response_deadline_hours: responseDeadlineHours
+      });
+
+      // Créer/récupérer un lien unique côté backend avec le délai personnalisé
       const { data } = await api.post(`/interviews/campaign-links/`, {
         application_id: applicationId,
+        response_deadline_hours: responseDeadlineHours
       });
 
       // Envoyer l'invitation par email (backend enverra au candidat)
@@ -109,13 +114,21 @@ const JobApplicationsList = ({ jobOfferId }) => {
       await handleUpdateStatus(applicationId, 'under_review');
 
       // Afficher le lien de démarrage et proposer de copier
-  const msg = `Invitation générée et envoyée par email à ${candidateName}.
-Lien: ${data.start_url}
-Expire le: ${new Date(data.expires_at).toLocaleString('fr-FR')}`;
+      const expirationDate = new Date(data.expires_at);
+      const hoursUntilExpiration = Math.round((expirationDate - new Date()) / (1000 * 60 * 60));
+      const msg = `✅ Invitation générée et envoyée par email à ${candidateName}.
+
+📧 Email: ${data.email || 'Email du candidat'}
+🔗 Lien: ${data.start_url}
+⏰ Expire le: ${expirationDate.toLocaleString('fr-FR')}
+⏳ Délai: ${hoursUntilExpiration} heures restantes`;
+      
       if (navigator.clipboard?.writeText) {
-        try { await navigator.clipboard.writeText(data.start_url); } catch { /* noop */ }
+        try { 
+          await navigator.clipboard.writeText(data.start_url); 
+        } catch { /* noop */ }
       }
-      alert(msg + "\n(Le lien a été copié dans le presse-papiers si possible.)");
+      alert(msg + "\n\n📋 Le lien a été copié dans le presse-papiers.");
     } catch (err) {
       console.error('Error sending invitation:', err);
       const status = err.response?.status;
@@ -292,7 +305,7 @@ Expire le: ${new Date(data.expires_at).toLocaleString('fr-FR')}`;
                             size="sm"
                             onClick={() => setConfirmationModal({
                               show: true,
-                              candidate: application.candidate,
+                              candidate: {...application.candidate, application_id: application.id},
                               action: 'invite',
                               applicationId: application.id
                             })}
@@ -310,7 +323,7 @@ Expire le: ${new Date(data.expires_at).toLocaleString('fr-FR')}`;
                             size="sm"
                             onClick={() => setConfirmationModal({
                               show: true,
-                              candidate: application.candidate,
+                              candidate: {...application.candidate, application_id: application.id},
                               action: 'reinvite',
                               applicationId: application.id
                             })}
@@ -412,28 +425,24 @@ Expire le: ${new Date(data.expires_at).toLocaleString('fr-FR')}`;
               ></textarea>
             </div>
             
-            <div className="row">
-              <div className="col-md-6">
-                <div className="mb-3">
-                  <label className="form-label">Délai de réponse</label>
-                  <select className="form-control">
-                    <option value="7">7 jours (par défaut)</option>
-                    <option value="3">3 jours</option>
-                    <option value="5">5 jours</option>
-                    <option value="10">10 jours</option>
-                    <option value="14">14 jours</option>
-                  </select>
-                </div>
-              </div>
-              <div className="col-md-6">
-                <div className="mb-3">
-                  <label className="form-label">Priorité</label>
-                  <select className="form-control">
-                    <option value="normal">Normale</option>
-                    <option value="high">Haute</option>
-                    <option value="urgent">Urgente</option>
-                  </select>
-                </div>
+            <div className="mb-3">
+              <label className="form-label">
+                <i className="bi bi-clock me-2"></i>
+                Délai de réponse (en heures)
+              </label>
+              <select className="form-control" id="responseDeadline">
+                <option value="24">24 heures (1 jour)</option>
+                <option value="48">48 heures (2 jours)</option>
+                <option value="72">72 heures (3 jours)</option>
+                <option value="120">120 heures (5 jours)</option>
+                <option value="168" selected>168 heures (7 jours - par défaut)</option>
+                <option value="240">240 heures (10 jours)</option>
+                <option value="336">336 heures (14 jours)</option>
+                <option value="504">504 heures (21 jours)</option>
+              </select>
+              <div className="form-text text-muted">
+                <i className="bi bi-info-circle me-1"></i>
+                Le lien d'entretien expirera automatiquement après ce délai
               </div>
             </div>
             
@@ -453,26 +462,22 @@ Expire le: ${new Date(data.expires_at).toLocaleString('fr-FR')}`;
           </div>
         </Modal.Body>
         <Modal.Footer>
-          <Button 
-            variant="secondary" 
-            onClick={() => setConfirmationModal({ show: false, candidate: null, action: null })}
-          >
+          <Button variant="secondary" onClick={() => setConfirmationModal({ show: false, candidate: null, action: null })}>
             Annuler
           </Button>
           <Button 
             variant="primary" 
             onClick={() => {
-              handleInviteCandidate(
-                confirmationModal.applicationId,
-                confirmationModal.candidate?.username || 
-                (confirmationModal.candidate?.email && confirmationModal.candidate.email.split('@')[0]) || 
-                'ce candidat'
-              );
+              if (confirmationModal.action === 'invite') {
+                handleInviteCandidate(confirmationModal.candidate.application_id, `${confirmationModal.candidate.first_name} ${confirmationModal.candidate.last_name}`);
+              } else if (confirmationModal.action === 'reinvite') {
+                handleInviteCandidate(confirmationModal.candidate.application_id, `${confirmationModal.candidate.first_name} ${confirmationModal.candidate.last_name}`);
+              }
               setConfirmationModal({ show: false, candidate: null, action: null });
             }}
           >
             <i className="bi bi-send me-2"></i>
-            {confirmationModal.action === 'invite' ? 'Confirmer l\'invitation' : 'Confirmer la réinvitation'}
+            {confirmationModal.action === 'invite' ? 'Envoyer l\'invitation' : 'Renvoyer l\'invitation'}
           </Button>
         </Modal.Footer>
       </Modal>

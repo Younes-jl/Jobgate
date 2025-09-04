@@ -503,11 +503,28 @@ class CampaignLinkViewSet(viewsets.ViewSet):
 
     def create(self, request):
         """Créer/obtenir un lien unique pour une candidature.
-        Body attendu: { application_id: number }
+        Body attendu: { application_id: number, response_deadline_hours: number (optionnel) }
         """
+        logger.error(f"Données reçues pour création de lien: {request.data}")
+        
         application_id = request.data.get('application_id')
+        response_deadline_hours = request.data.get('response_deadline_hours', 168)  # 7 jours par défaut
+        
+        logger.error(f"application_id extrait: {application_id}")
+        logger.error(f"response_deadline_hours extrait: {response_deadline_hours}")
+        
         if not application_id:
+            logger.error("Erreur: application_id manquant dans la requête")
             return Response({"detail": "application_id requis"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Valider le délai en heures
+        try:
+            response_deadline_hours = int(response_deadline_hours)
+            if response_deadline_hours < 1 or response_deadline_hours > 8760:  # Max 1 an
+                raise ValueError()
+        except (ValueError, TypeError):
+            return Response({"detail": "response_deadline_hours doit être un nombre entier entre 1 et 8760 heures"}, status=status.HTTP_400_BAD_REQUEST)
+        
         try:
             app = JobApplication.objects.select_related('job_offer', 'candidate').get(pk=application_id)
         except JobApplication.DoesNotExist:
@@ -537,8 +554,12 @@ class CampaignLinkViewSet(viewsets.ViewSet):
         # Si le lien n'est pas valide, régénérer avec nouvelle expiration
         if not link.is_valid:
             link.revoked = False
-            link.expires_at = timezone.now() + timedelta(days=7)
+            link.expires_at = timezone.now() + timedelta(hours=response_deadline_hours)
             link.token = ''  # force regeneration in save()
+            link.save()
+        else:
+            # Mettre à jour l'expiration même si le lien existe déjà
+            link.expires_at = timezone.now() + timedelta(hours=response_deadline_hours)
             link.save()
 
         serializer = CampaignLinkSerializer(link, context={'request': request})
@@ -578,26 +599,100 @@ class CampaignLinkViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['post'])
     def send_invite(self, request, pk=None):
         """Envoie un email d'invitation au candidat pour ce lien."""
+        logger.error(f"Tentative d'envoi d'invitation pour le lien ID: {pk}")
+        
         link = get_object_or_404(CampaignLink, pk=pk)
+        logger.error(f"Lien trouvé: {link}, candidat: {link.candidate}, email candidat: {link.candidate.email if link.candidate else 'N/A'}")
+        
         # Autorisation: seul le recruteur de l'offre (ou staff)
         if request.user != link.campaign.job_offer.recruiter and not request.user.is_staff:
+            logger.error(f"Autorisation refusée: utilisateur {request.user.id} vs recruteur {link.campaign.job_offer.recruiter.id}")
             return Response({"detail": "Non autorisé"}, status=status.HTTP_403_FORBIDDEN)
-        if not link.is_valid:
-            return Response({"detail": "Lien invalide ou expiré"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Vérification détaillée de la validité du lien
+        logger.error(f"Vérification validité: revoked={link.revoked}, expired={link.is_expired}, expires_at={link.expires_at}")
+        logger.error(f"Uses: {link.uses_count}/{link.max_uses}")
+        
+        # Vérifier les réponses existantes
+        from .models import InterviewAnswer
+        existing_answers = InterviewAnswer.objects.filter(
+            question__campaign=link.campaign,
+            candidate=link.candidate
+        )
+        logger.error(f"Réponses existantes pour ce candidat/campagne: {existing_answers.count()}")
+        
+        # Pour l'envoi d'invitation, on autorise même s'il y a des réponses existantes
+        # car le recruteur peut vouloir renvoyer une invitation
+        if link.revoked:
+            logger.error("Lien révoqué")
+            return Response({"detail": "Lien révoqué"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if link.is_expired:
+            logger.error("Lien expiré")
+            return Response({"detail": "Lien expiré"}, status=status.HTTP_400_BAD_REQUEST)
+        
         # Déterminer l'email cible
         to_email = link.email or (link.candidate.email if link.candidate and link.candidate.email else None)
+        logger.error(f"Email cible déterminé: {to_email}")
+        
         if not to_email:
+            logger.error("Aucun email disponible pour ce candidat")
             return Response({"detail": "Aucun email disponible pour ce candidat"}, status=status.HTTP_400_BAD_REQUEST)
-        subject = f"Invitation à l'entretien: {link.campaign.title}"
+        
+        # Calculer les heures restantes jusqu'à l'expiration
+        time_until_expiration = link.expires_at - timezone.now()
+        hours_until_expiration = int(time_until_expiration.total_seconds() / 3600)
+        days_until_expiration = hours_until_expiration // 24
+        remaining_hours = hours_until_expiration % 24
+        
+        # Formatage du délai d'expiration
+        if days_until_expiration > 0:
+            expiration_text = f"{days_until_expiration} jour{'s' if days_until_expiration > 1 else ''}"
+            if remaining_hours > 0:
+                expiration_text += f" et {remaining_hours} heure{'s' if remaining_hours > 1 else ''}"
+        else:
+            expiration_text = f"{hours_until_expiration} heure{'s' if hours_until_expiration > 1 else ''}"
+        
+        subject = f"🎯 Invitation à l'entretien vidéo - {link.campaign.job_offer.title}"
         start_url = link.get_start_url()
-        message = (
-            f"Bonjour,\n\n"
-            f"Vous êtes invité(e) à passer un entretien vidéo pour l'offre '{link.campaign.job_offer.title}'.\n"
-            f"Campagne: {link.campaign.title}\n\n"
-            f"Cliquez sur ce lien pour démarrer: {start_url}\n\n"
-            f"Ce lien expirera le {link.expires_at.strftime('%Y-%m-%d %H:%M')} et est valide {link.max_uses} fois.\n\n"
-            f"Cordialement,\nL'équipe JobGate"
-        )
+        
+        # Template d'email amélioré
+        message = f"""Bonjour {link.candidate.first_name if link.candidate and link.candidate.first_name else ''},
+
+Nous avons le plaisir de vous inviter à passer un entretien vidéo pour le poste :
+📋 **{link.campaign.job_offer.title}**
+🏢 Entreprise : {link.campaign.job_offer.recruiter.get_full_name() if link.campaign.job_offer.recruiter else 'JobGate'}
+
+🎥 **INSTRUCTIONS POUR L'ENTRETIEN :**
+
+1. Cliquez sur le lien ci-dessous pour accéder à votre entretien :
+   👉 {start_url}
+
+2. ⚠️ **IMPORTANT - Délai d'expiration :**
+   • Ce lien expirera dans {expiration_text}
+   • Date limite : {link.expires_at.strftime('%d/%m/%Y à %H:%M')}
+   • Le lien ne peut être utilisé qu'UNE SEULE FOIS
+
+3. 📝 **Préparation recommandée :**
+   • Testez votre caméra et microphone
+   • Choisissez un environnement calme et bien éclairé
+   • Préparez vos réponses aux questions sur votre parcours
+
+4. 🕒 **Durée estimée :** 15-30 minutes selon les questions
+
+⚡ **RAPPEL IMPORTANT :**
+Ce lien d'invitation est personnel et confidentiel. Il ne peut être utilisé qu'une seule fois et expirera automatiquement après le délai indiqué. Nous vous recommandons de passer l'entretien dès que possible.
+
+Si vous rencontrez des difficultés techniques ou avez des questions, n'hésitez pas à nous contacter.
+
+Bonne chance pour votre entretien !
+
+Cordialement,
+L'équipe JobGate
+
+---
+🔒 Ce message est confidentiel et destiné uniquement à la personne mentionnée."""
+        
         send_mail(subject, message, None, [to_email], fail_silently=False)
         return Response({"detail": "Invitation envoyée", "email": to_email, "start_url": start_url})
     
