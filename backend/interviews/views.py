@@ -1149,7 +1149,7 @@ class AIQuestionGeneratorView(APIView):
         technical_count = request.data.get('technical_count')
 
         try:
-            # Appel au service IA pour générer les questions
+            # Appel au service IA pour générer les questions (uniquement dynamique)
             ai_generator = AIInterviewQuestionGenerator()
             questions = ai_generator.generate_questions(
                 offer_title=job_title,
@@ -1162,7 +1162,7 @@ class AIQuestionGeneratorView(APIView):
             )
 
             # Analyser la qualité des questions générées
-            quality_analysis = analyze_question_quality(questions)
+            quality_analysis = analyze_question_quality(questions, job_title, requirements)
             analyzed_questions = []
             for question in questions:
                 analyzed_questions.append({
@@ -1185,11 +1185,19 @@ class AIQuestionGeneratorView(APIView):
                 }
             }, status=status.HTTP_200_OK)
 
-        except Exception as e:
-            logger.error(f"Erreur lors de la génération de questions IA: {str(e)}")
+        except ValueError as e:
+            # Erreurs de validation ou de configuration
+            logger.error(f"Erreur de validation lors de la génération: {str(e)}")
             return Response({
-                'error': 'Erreur lors de la génération des questions IA. Veuillez réessayer.',
-                'details': str(e) if getattr(settings, 'DEBUG', False) else None
+                'error': str(e),
+                'type': 'validation_error'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Erreur technique lors de la génération de questions IA: {str(e)}")
+            return Response({
+                'error': 'Erreur technique lors de la génération des questions. Veuillez vérifier votre configuration Gemini.',
+                'details': str(e) if getattr(settings, 'DEBUG', False) else None,
+                'type': 'technical_error'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -1229,7 +1237,7 @@ class AIQuestionAnalysisView(APIView):
         
         try:
             # Analyser la qualité de la question
-            analysis = analyze_question_quality(question_text)
+            analysis = analyze_question_quality([{"question": question_text, "type": "custom"}], "Question personnalisée", "")
             
             logger.info(f"Analyse de qualité effectuée pour une question de l'utilisateur {request.user.id}")
             

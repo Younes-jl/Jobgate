@@ -1,3 +1,4 @@
+
 services:
   # Service de la base de données
   db:
@@ -40,17 +41,16 @@ services:
       - POSTGRES_USER=jobgateuser
       - POSTGRES_PASSWORD=jobgatepass
       - POSTGRES_HOST=db
-      # Variable pour signaler que nous sommes en environnement Docker
       - DOCKER_ENVIRONMENT=1
-      # Configuration SendGrid pour l'envoi d'emails
       - SENDGRID_API_KEY=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
       - DEFAULT_FROM_EMAIL=JobGate <achyounes737@gmail.com>
       - FRONTEND_BASE_URL=${FRONTEND_BASE_URL:-http://localhost:3000}
-      # Configuration Firebase
-      - USE_FIREBASE_STORAGE=${USE_FIREBASE_STORAGE:-false}
-      - FIREBASE_STORAGE_BUCKET=${FIREBASE_STORAGE_BUCKET}
-      - FIREBASE_CREDENTIALS=${FIREBASE_CREDENTIALS}
-      - FIREBASE_CREDENTIALS_PATH=${FIREBASE_CREDENTIALS_PATH}
+      - GOOGLE_API_KEY=AIzaSyBKxedeY80RD30tP_7bshhAZfYNCUCEVms
+      - GOOGLE_GEMINI_API_KEY=AIzaSyBKxedeY80RD30tP_7bshhAZfYNCUCEVms
+      - USE_GOOGLE_GEMINI=true
+      - USE_GEMINI=true
+      - AI_EVALUATION_ENABLED=true
+      - USE_LOCAL_WHISPER=true
     depends_on:
       db:
         condition: service_healthy

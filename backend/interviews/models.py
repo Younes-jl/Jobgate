@@ -79,8 +79,15 @@ class InterviewQuestion(models.Model):
     Modèle représentant une question d'entretien.
     Chaque question appartient à une campagne et a un temps limite de réponse.
     """
+    QUESTION_TYPES = [
+        ('technique', 'Technique'),
+        ('comportementale', 'Comportementale'),
+        ('generale', 'Générale'),
+    ]
+    
     campaign = models.ForeignKey(InterviewCampaign, on_delete=models.CASCADE, related_name="questions", verbose_name="Campagne")
     text = models.TextField(verbose_name="Texte de la question")
+    question_type = models.CharField(max_length=20, choices=QUESTION_TYPES, default='generale', verbose_name="Type de question")
     time_limit = models.PositiveIntegerField(default=60, verbose_name="Limite de temps (secondes)")
     order = models.PositiveIntegerField(default=0, verbose_name="Ordre")
     

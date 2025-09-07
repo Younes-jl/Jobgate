@@ -70,7 +70,7 @@ const CreateOfferWithCampaign = () => {
                 behavioral_count: aiOptions.behavioralCount,
                 technical_count: aiOptions.technicalCount
             };
-            const response = await api.post('/interviews/ai/generate-questions/', payload);
+            const response = await api.post('/interviews/generate-questions/', payload);
             const questions = response.data.questions || [];
             if (questions.length === 0) {
                 setAiError("Aucune question générée par l'IA.");

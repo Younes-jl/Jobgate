@@ -17,7 +17,7 @@ class InterviewQuestionSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = InterviewQuestion
-        fields = ['id', 'text', 'time_limit', 'order', 'created_at']
+        fields = ['id', 'text', 'question_type', 'time_limit', 'order', 'created_at']
         read_only_fields = ['id', 'created_at']
 
 class InterviewCampaignSerializer(serializers.ModelSerializer):
@@ -48,6 +48,15 @@ class InterviewCampaignCreateSerializer(serializers.ModelSerializer):
         
         for i, question_data in enumerate(questions_data):
             question_data['order'] = i + 1
+            # Mapper le type de question de l'IA vers le modèle
+            if 'type' in question_data:
+                ai_type = question_data.pop('type')
+                if ai_type == 'technique':
+                    question_data['question_type'] = 'technique'
+                elif ai_type == 'comportementale':
+                    question_data['question_type'] = 'comportementale'
+                else:
+                    question_data['question_type'] = 'generale'
             InterviewQuestion.objects.create(campaign=campaign, **question_data)
         
         return campaign
@@ -124,7 +133,7 @@ class InterviewAnswerSerializer(serializers.ModelSerializer):
             'status', 'score', 'recruiter_notes', 'created_at', 'updated_at',
             'candidate_name', 'question_text', 'campaign_title', 
             'duration_formatted', 'file_size_formatted', 'video_url',
-            'cloudinary_public_id', 'cloudinary_url', 'cloudinary_secure_url'
+            'cloudinary_public_id', 'cloudinary_url', 'cloudinary_secure_url',
         ]
         read_only_fields = [
             'id', 'created_at', 'updated_at', 'candidate_name', 
@@ -163,3 +172,5 @@ class InterviewAnswerSerializer(serializers.ModelSerializer):
             validated_data['file_size'] = video_file.size
         
         return super().create(validated_data)
+
+

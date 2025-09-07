@@ -1,11 +1,11 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    JobOfferViewSet, InterviewCampaignViewSet, InterviewQuestionViewSet, 
-    JobApplicationViewSet, CampaignLinkViewSet, InterviewAnswerViewSet,
-    AIQuestionGeneratorView, AIQuestionAnalysisView, AIQuestionTemplatesView,
-    CloudinaryVideoUploadView
+    JobOfferViewSet, InterviewCampaignViewSet, CampaignLinkViewSet,
+    InterviewQuestionViewSet, InterviewAnswerViewSet, JobApplicationViewSet,
+    CloudinaryVideoUploadView, AIQuestionGeneratorView, AIQuestionAnalysisView
 )
+from .test_views import test_env_vars
 
 router = DefaultRouter()
 router.register(r'offers', JobOfferViewSet, basename='job-offers')
@@ -29,9 +29,9 @@ urlpatterns = [
     path('campaigns/<int:pk>/public/', InterviewCampaignViewSet.as_view({'get': 'public_detail'}), name='campaign-public-detail'),
     
     # ========== URLs IA pour Génération de Questions ==========
-    path('ai/generate-questions/', AIQuestionGeneratorView.as_view(), name='ai-generate-questions'),
+    path('generate-questions/', AIQuestionGeneratorView.as_view(), name='ai-generate-questions'),
     path('ai/analyze-question/', AIQuestionAnalysisView.as_view(), name='ai-analyze-question'),
-    path('ai/question-templates/', AIQuestionTemplatesView.as_view(), name='ai-question-templates'),
+    path('test-env/', test_env_vars, name='test-env-vars'),
     
     # ========== URLs Cloudinary pour Upload Vidéo ==========
     path('videos/upload/', CloudinaryVideoUploadView.as_view(), name='cloudinary-video-upload'),

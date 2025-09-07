@@ -34,7 +34,9 @@ const AIQuestionGenerator = ({ onQuestionsGenerated, jobOffer = null }) => {
     required_skills: jobOffer?.required_skills || [],
     experience_level: 'intermediate',
     question_count: 5,
-    difficulty_level: 'medium'
+    difficulty_level: 'medium',
+    behavioral_count: 2,
+    technical_count: 3
   });
 
   // Charger les modèles de questions au montage
@@ -75,7 +77,7 @@ const AIQuestionGenerator = ({ onQuestionsGenerated, jobOffer = null }) => {
     setSuccess('');
 
     try {
-      const response = await api.post('/interviews/ai/generate-questions/', formData);
+      const response = await api.post('/interviews/generate-questions/', formData);
       
       if (response.data.success) {
         const generatedQuestions = response.data.questions;
@@ -232,15 +234,43 @@ const AIQuestionGenerator = ({ onQuestionsGenerated, jobOffer = null }) => {
                 </Form.Group>
               </Col>
               
-              <Col md={3}>
+              <Col md={2}>
                 <Form.Group className="mb-3">
-                  <Form.Label>Nombre de questions</Form.Label>
+                  <Form.Label>Total questions</Form.Label>
                   <Form.Control
                     type="number"
                     name="question_count"
                     min="1"
                     max="20"
                     value={formData.question_count}
+                    onChange={handleInputChange}
+                  />
+                </Form.Group>
+              </Col>
+              
+              <Col md={2}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Questions comportementales</Form.Label>
+                  <Form.Control
+                    type="number"
+                    name="behavioral_count"
+                    min="0"
+                    max="10"
+                    value={formData.behavioral_count}
+                    onChange={handleInputChange}
+                  />
+                </Form.Group>
+              </Col>
+              
+              <Col md={2}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Questions techniques</Form.Label>
+                  <Form.Control
+                    type="number"
+                    name="technical_count"
+                    min="0"
+                    max="10"
+                    value={formData.technical_count}
                     onChange={handleInputChange}
                   />
                 </Form.Group>
