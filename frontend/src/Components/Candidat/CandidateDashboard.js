@@ -56,96 +56,8 @@ const CandidateDashboard = () => {
   return (
     <Container fluid className="py-4">
       <Row>
-        {/* Section informations candidat */}
-        <Col md={4}>
-          <Card className="shadow-sm mb-4">
-            <Card.Header className="bg-primary text-white">
-              <div className="d-flex justify-content-between align-items-center">
-                <h5 className="mb-0">
-                  <i className="bi bi-person-circle me-2"></i>
-                  Mon Profil
-                </h5>
-                <Button 
-                  variant="outline-light" 
-                  size="sm"
-                  onClick={() => setEditMode(!editMode)}
-                >
-                  <i className="bi bi-pencil me-1"></i>
-                  {editMode ? 'Annuler' : 'Modifier'}
-                </Button>
-              </div>
-            </Card.Header>
-            <Card.Body>
-              {user ? (
-                <div>
-                  <div className="text-center mb-3">
-                    <i className="bi bi-person-circle" style={{ fontSize: '4rem', color: '#6c757d' }}></i>
-                  </div>
-                  
-                  {editMode ? (
-                    <div>
-                      <div className="mb-3">
-                        <label className="form-label">Prénom</label>
-                        <input className="form-control" defaultValue={user.first_name} />
-                      </div>
-                      <div className="mb-3">
-                        <label className="form-label">Nom</label>
-                        <input className="form-control" defaultValue={user.last_name} />
-                      </div>
-                      <div className="mb-3">
-                        <label className="form-label">Email</label>
-                        <input className="form-control" defaultValue={user.email} />
-                      </div>
-                      <div className="mb-3">
-                        <label className="form-label">Téléphone</label>
-                        <input className="form-control" defaultValue={user.phone || ''} />
-                      </div>
-                      <div className="mb-3">
-                        <label className="form-label">Ville</label>
-                        <input className="form-control" defaultValue={user.city || ''} />
-                      </div>
-                      <Button variant="success" size="sm" className="w-100">
-                        <i className="bi bi-check2 me-1"></i>
-                        Sauvegarder
-                      </Button>
-                    </div>
-                  ) : (
-                    <div>
-                      <div className="mb-2">
-                        <strong>Nom complet:</strong>
-                        <div>{user.first_name} {user.last_name}</div>
-                      </div>
-                      <div className="mb-2">
-                        <strong>Email:</strong>
-                        <div>{user.email}</div>
-                      </div>
-                      <div className="mb-2">
-                        <strong>Téléphone:</strong>
-                        <div>{user.phone || 'Non renseigné'}</div>
-                      </div>
-                      <div className="mb-2">
-                        <strong>Ville:</strong>
-                        <div>{user.city || 'Non renseignée'}</div>
-                      </div>
-                      <div className="mb-2">
-                        <strong>Membre depuis:</strong>
-                        <div>{new Date(user.date_joined).toLocaleDateString()}</div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center text-muted">
-                  <i className="bi bi-person-x" style={{ fontSize: '3rem' }}></i>
-                  <p>Informations non disponibles</p>
-                </div>
-              )}
-            </Card.Body>
-          </Card>
-        </Col>
-
-        {/* Section offres d'emploi */}
-        <Col md={8}>
+        {/* Section offres d'emploi - maintenant en pleine largeur */}
+        <Col md={12}>
           <Card className="shadow-sm">
             <Card.Header className="bg-light">
               <h5 className="mb-0">
@@ -162,44 +74,49 @@ const CandidateDashboard = () => {
               ) : (
                 <Row>
                   {jobOffers.map((offer) => (
-                    <Col md={6} key={offer.id} className="mb-4">
-                      <Card className="h-100 border-0 shadow-sm">
-                        <Card.Body>
-                          <div className="d-flex justify-content-between align-items-start mb-2">
-                            <h6 className="fw-bold text-primary mb-0">{offer.title}</h6>
-                            <Badge bg="secondary" className="ms-2">Nouveau</Badge>
+                    <Col md={4} key={offer.id} className="mb-4">
+                      <Card className="h-100 border-0 shadow-sm job-offer-card-modern">
+                        <Card.Body className="p-4">
+                          <div className="d-flex align-items-start mb-3">
+                            <div className="job-icon me-3">
+                              <i className="bi bi-briefcase"></i>
+                            </div>
+                            <div className="flex-grow-1">
+                              <h5 className="job-title mb-1">{offer.title}</h5>
+                              <p className="company-name mb-0">{offer.recruiter_name || 'Entreprise'}</p>
+                            </div>
                           </div>
                           
-                          <div className="mb-2">
-                            <i className="bi bi-geo-alt me-1 text-muted"></i>
-                            <small className="text-muted">{offer.location}</small>
+                          <div className="job-meta mb-3">
+                            <div className="meta-item">
+                              <i className="bi bi-geo-alt me-2"></i>
+                              <span>{offer.location}</span>
+                            </div>
+                            <div className="meta-item">
+                              <i className="bi bi-calendar3 me-2"></i>
+                              <span>Candidature: {new Date(offer.created_at).toLocaleDateString('fr-FR')}</span>
+                            </div>
                           </div>
                           
-                          <p className="text-muted small mb-3">
-                            {offer.description.length > 80 
-                              ? `${offer.description.substring(0, 80)}...` 
+                          <p className="job-description mb-3">
+                            {offer.description.length > 100 
+                              ? `${offer.description.substring(0, 100)}...` 
                               : offer.description}
                           </p>
                           
-                          <div className="mb-3">
-                            <div className="d-flex justify-content-between text-muted small">
-                              <span>
-                                <i className="bi bi-calendar-plus me-1"></i>
-                                Créé: {new Date(offer.created_at).toLocaleDateString()}
-                              </span>
+                          <div className="d-flex justify-content-between align-items-center">
+                            <div className="job-badges">
+                              {offer.contract_type && (
+                                <Badge bg="light" text="dark" className="me-2">
+                                  {offer.contract_type}
+                                </Badge>
+                              )}
+                              <Badge bg="success" className="new-badge">Nouveau</Badge>
                             </div>
-                            {offer.deadline && (
-                              <div className="text-muted small">
-                                <i className="bi bi-calendar-x me-1"></i>
-                                Expire: {new Date(offer.deadline).toLocaleDateString()}
-                              </div>
-                            )}
+                            <Link to={`/job-offers/${offer.id}`} className="btn btn-outline-primary btn-sm">
+                              Voir détails
+                            </Link>
                           </div>
-                          
-                          <Link to={`/job-offers/${offer.id}`} className="btn btn-primary btn-sm w-100">
-                            <i className="bi bi-eye me-1"></i>
-                            Voir les détails
-                          </Link>
                         </Card.Body>
                       </Card>
                     </Col>

@@ -1,0 +1,77 @@
+/* Top Navbar */
+.top-navbar {
+  background: white;
+  border-bottom: 1px solid #e9ecef;
+  padding: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  height: 60px;
+}
+
+.navbar-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  height: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+.brand-section {
+  margin-right: 0; /* keep logo flush left */
+}
+
+.brand-section .brand-logo {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #007bff;
+  text-decoration: none;
+  letter-spacing: 1px;
+}
+
+.brand-section .brand-logo:hover {
+  color: #0056b3;
+}
+
+.login-section {
+  display: flex;
+  align-items: center;
+}
+
+.login-button {
+  background: #4CAF50;
+  color: white;
+  text-decoration: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.login-button:hover {
+  background: #45a049;
+  color: white;
+  text-decoration: none;
+  transform: translateY(-1px);
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .navbar-content {
+    padding: 0 15px;
+  }
+  
+  .login-button {
+    padding: 6px 12px;
+    font-size: 0.9rem;
+  }
+}
+
+/* Smooth transitions */
+* {
+  transition: all 0.3s ease;
+}

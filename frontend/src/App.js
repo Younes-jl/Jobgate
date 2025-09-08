@@ -14,7 +14,11 @@ import CreateOfferWithCampaign from './Components/Recruteur/CreateOfferWithCampa
 import RecruiterJobOfferDetails from './Components/Recruteur/JobOfferDetails';
 import InterviewDetails from './Components/Recruteur/InterviewDetails';
 import CandidateDashboard from './Components/Candidat/CandidateDashboard';
+import CandidateDetails from './Components/Candidat/CandidateDetails';
 import JobOfferDetails from './Components/Candidat/JobOfferDetails';
+import CandidateNavbar from './Components/Candidat/CandidateNavbar';
+import RecruiterNavbar from './Components/Recruteur/RecruiterNavbar';
+import LoginNavbar from './Components/auth/LoginNavbar';
 import EntretienPage from './Components/Entretien/entretienDetails';
 
 
@@ -39,9 +43,9 @@ const HomePage = () => {
         return <Navigate to="/dashboard" replace />;
     }
     
-    // Rediriger automatiquement les candidats vers leur dashboard
+    // Rediriger automatiquement les candidats vers les offres
     if (user && user.role === 'CANDIDAT') {
-        return <Navigate to="/candidate/dashboard" replace />;
+        return <Navigate to="/candidate/offers" replace />;
     }
     
     return (
@@ -93,8 +97,9 @@ function AppContent() {
     const { user, isTokenChecked } = useAuth();
     const location = useLocation();
     
-    // Vérifier si on est sur la page d'entretien
+    // Vérifier si on est sur la page d'entretien ou de login
     const isInterviewPage = location.pathname.startsWith('/interview/');
+    const isLoginPage = location.pathname === '/login';
 
     // Si le token n'est pas encore vérifié, on peut afficher un indicateur de chargement
     if (!isTokenChecked) {
@@ -110,34 +115,21 @@ function AppContent() {
             {/* Afficher la navbar seulement si on n'est PAS sur la page d'entretien */}
             {!isInterviewPage && (
                 <>
-                    <nav style={{ background: '#f0f0f0', padding: '10px', display: 'flex', justifyContent: 'space-between' }}>
-                        <div>
-                            <Link to="/" style={{ marginRight: '15px', fontSize: '18px', fontWeight: 'bold' }}>Application</Link>
-                            {user && user.role === 'RECRUTEUR' && (
-                                <Link to="/dashboard" style={{ marginRight: '15px' }}>Tableau de bord</Link>
-                            )}
-                            {user && user.role === 'CANDIDAT' && (
-                                <Link to="/candidate/dashboard" style={{ marginRight: '15px' }}>Offres d'emploi</Link>
-                            )}
-                        </div>
-                        <div>
-                            {user ? (
-                                // Ce qui est affiché si l'utilisateur est connecté
-                                <>
-                                    <span>Bonjour, {user.username} ({user.role})</span>
-                                    <LogoutButton />
-                                </>
-                            ) : (
-                                // Ce qui est affiché si l'utilisateur n'est pas connecté
-                                <Link to="/login" style={{ padding: '5px 10px', backgroundColor: '#4CAF50', color: 'white', textDecoration: 'none', borderRadius: '4px' }}>Se Connecter</Link>
-                            )}
-                        </div>
-                    </nav>
-                    <hr />
+                    {/* Navbar pour la page de login */}
+                    {isLoginPage && <LoginNavbar />}
+                    
+                    {/* Navbar pour les candidats */}
+                    {user && user.role === 'CANDIDAT' && <CandidateNavbar />}
+                    
+                    {/* Navbar pour les recruteurs */}
+                    {user && user.role === 'RECRUTEUR' && <RecruiterNavbar />}
+                    
+                    {/* Navbar pour les utilisateurs non connectés (sauf page login) */}
+                    {!user && !isLoginPage && <LoginNavbar />}
                 </>
             )}
 
-            <div style={{ padding: isInterviewPage ? '0' : '20px' }}>
+            <div style={{ padding: isInterviewPage ? '0' : '20px', paddingTop: (user && (user.role === 'CANDIDAT' || user.role === 'RECRUTEUR')) || isLoginPage || (!user && !isLoginPage) ? '80px' : '0' }}>
                     <Routes>
                         {/* Page d'entretien via lien d'invitation (publique) - DOIT ÊTRE EN PREMIER */}
                         <Route path="/interview/start/:token" element={<EntretienPage />} />
@@ -152,7 +144,7 @@ function AppContent() {
                             user ? (
                                 user.role === 'RECRUTEUR' ? 
                                 <Navigate to="/dashboard" replace /> : 
-                                <Navigate to="/candidate/dashboard" replace />
+                                <Navigate to="/candidate/offers" replace />
                             ) : 
                             <LoginPage />
                         } />
@@ -161,6 +153,8 @@ function AppContent() {
                         <Route path="/dashboard" element={
                             user && user.role === 'RECRUTEUR' ? 
                             <RecruiterDashboard /> : 
+                            user && user.role === 'CANDIDAT' ?
+                            <Navigate to="/candidate/offers" replace /> :
                             <Navigate to="/" replace />
                         } />
                         
@@ -187,6 +181,13 @@ function AppContent() {
                         
                         {/* Tableau de bord candidat (protégé) */}
                         <Route path="/candidate/dashboard" element={
+                            user && user.role === 'CANDIDAT' ? 
+                            <CandidateDetails /> : 
+                            <Navigate to="/" replace />
+                        } />
+                        
+                        {/* Offres d'emploi candidat (protégé) */}
+                        <Route path="/candidate/offers" element={
                             user && user.role === 'CANDIDAT' ? 
                             <CandidateDashboard /> : 
                             <Navigate to="/" replace />

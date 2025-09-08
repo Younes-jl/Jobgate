@@ -1,0 +1,161 @@
+/* Top Navbar */
+.top-navbar {
+  background: white;
+  border-bottom: 1px solid #e9ecef;
+  padding: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  height: 60px;
+}
+
+.navbar-content {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 20px;
+  height: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+.brand-section {
+  margin-right: 0; /* keep logo flush left */
+}
+
+.brand-section .brand-logo {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #007bff;
+  text-decoration: none;
+  letter-spacing: 1px;
+}
+
+.brand-section .brand-logo:hover {
+  color: #0056b3;
+}
+
+.top-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  margin-left: 24px;
+}
+
+.top-nav-links .nav-link {
+  color: #6c757d;
+  text-decoration: none;
+  font-weight: 500;
+  padding: 8px 0;
+  border-bottom: 2px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.top-nav-links .nav-link:hover {
+  color: #007bff;
+  border-bottom-color: #007bff;
+}
+
+.top-nav-links .nav-link.active {
+  color: #007bff;
+  border-bottom-color: #007bff;
+}
+
+.user-section {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+
+.user-avatar {
+  font-size: 2rem;
+  color: #6c757d;
+  cursor: pointer;
+}
+
+.user-avatar:hover {
+  color: #007bff;
+}
+
+/* Reset button default styles for avatar trigger */
+.btn-reset {
+  background: transparent;
+  border: none;
+  padding: 0;
+  line-height: 1;
+}
+
+/* User dropdown menu */
+.user-menu {
+  position: absolute;
+  right: 20px;
+  top: 60px;
+  background: #ffffff;
+  border: 1px solid #e9ecef;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  min-width: 260px;
+  padding: 10px 0;
+  z-index: 1100;
+}
+
+.user-menu-header {
+  padding: 8px 16px 4px 16px;
+}
+
+.user-menu-name {
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 0.95rem;
+}
+
+.user-menu-email {
+  color: #6c757d;
+  font-size: 0.85rem;
+}
+
+.user-menu-divider {
+  margin: 8px 0;
+  border-color: #f1f3f5;
+}
+
+.user-menu-item {
+  width: 100%;
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  color: #495057;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.user-menu-item:hover {
+  background: #f8f9fa;
+  color: #2c3e50;
+}
+
+.user-menu-item.danger {
+  color: #dc3545;
+}
+
+.user-menu-item.danger:hover {
+  background: #fff5f5;
+  color: #dc3545;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .top-nav-links {
+    display: none;
+  }
+}
+
+/* Smooth transitions */
+* {
+  transition: all 0.3s ease;
+}
