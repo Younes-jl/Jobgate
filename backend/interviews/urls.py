@@ -3,7 +3,8 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     JobOfferViewSet, InterviewCampaignViewSet, CampaignLinkViewSet,
     InterviewQuestionViewSet, InterviewAnswerViewSet, JobApplicationViewSet,
-    CloudinaryVideoUploadView, AIQuestionGeneratorView, AIQuestionAnalysisView
+    CloudinaryVideoUploadView, AIQuestionGeneratorView, AIQuestionAnalysisView,
+    EvaluateVideoView, AiEvaluationViewSet
 )
 from .test_views import test_env_vars
 
@@ -14,6 +15,7 @@ router.register(r'questions', InterviewQuestionViewSet, basename='interview-ques
 router.register(r'applications', JobApplicationViewSet, basename='job-applications')
 router.register(r'campaign-links', CampaignLinkViewSet, basename='campaign-links')
 router.register(r'answers', InterviewAnswerViewSet, basename='interview-answers')
+router.register(r'ai-evaluations', AiEvaluationViewSet, basename='ai-evaluations')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -35,4 +37,7 @@ urlpatterns = [
     
     # ========== URLs Cloudinary pour Upload Vidéo ==========
     path('videos/upload/', CloudinaryVideoUploadView.as_view(), name='cloudinary-video-upload'),
+    
+    # ========== URLs IA pour Évaluation Vidéo ==========
+    path('ai/evaluate-video/', EvaluateVideoView.as_view(), name='ai-evaluate-video'),
 ]

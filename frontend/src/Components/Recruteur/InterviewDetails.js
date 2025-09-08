@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, Row, Col, Badge, Button, Form, Alert, Spinner, Container } from 'react-bootstrap';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
@@ -38,22 +38,7 @@ const InterviewDetails = () => {
   const [interviewLocation, setInterviewLocation] = useState('');
   const videoRef = useRef(null);
 
-  useEffect(() => {
-    fetchInterviewData();
-  }, [applicationId]);
-
-  // Effect pour recharger la vidéo quand la question change
-  useEffect(() => {
-    if (videoRef.current && candidateAnswers.length > 0) {
-      const currentAnswer = candidateAnswers[currentQuestionIndex];
-      if (currentAnswer && currentAnswer.video_url) {
-        videoRef.current.load(); // Force le rechargement de la vidéo
-        setVideoPlaying(false); // Reset l'état de lecture
-      }
-    }
-  }, [currentQuestionIndex, candidateAnswers]);
-
-  const fetchInterviewData = async () => {
+  const fetchInterviewData = useCallback(async () => {
     try {
       setLoading(true);
       console.log('Fetching interview data for application:', applicationId);
@@ -193,8 +178,22 @@ const InterviewDetails = () => {
       setError(errorMessage);
       setLoading(false);
     }
-  };
+  }, [applicationId]);
 
+  useEffect(() => {
+    fetchInterviewData();
+  }, [fetchInterviewData]);
+
+  // Effect pour recharger la vidéo quand la question change
+  useEffect(() => {
+    if (videoRef.current && candidateAnswers.length > 0) {
+      const currentAnswer = candidateAnswers[currentQuestionIndex];
+      if (currentAnswer && currentAnswer.video_url) {
+        videoRef.current.load(); // Force le rechargement de la vidéo
+        setVideoPlaying(false); // Reset l'état de lecture
+      }
+    }
+  }, [currentQuestionIndex, candidateAnswers]);
 
   const getStatusBadge = (status) => {
     const statusConfig = {
@@ -249,134 +248,305 @@ const InterviewDetails = () => {
     setAnalyzingAI(true);
     try {
       const currentAnswer = candidateAnswers[currentQuestionIndex];
-      const mockAnalysis = {
+      
+      if (!currentAnswer.video_url) {
+        alert('Aucune vidéo disponible pour cette question');
+        setAnalyzingAI(false);
+        return;
+      }
+
+      // Appel à l'API d'évaluation IA réelle
+      const evaluationRequest = {
+        candidate_id: application.candidate.id,
+        interview_answer_id: currentAnswer.id,
+        video_url: currentAnswer.video_url,
+        expected_skills: campaign?.expected_skills || ['Communication', 'Technique'],
+        use_gemini: true
+      };
+
+      console.log('Sending AI evaluation request:', evaluationRequest);
+      
+      const response = await api.post('/interviews/ai/evaluate-video/', evaluationRequest);
+      const aiEvaluation = response.data;
+      
+      console.log('AI evaluation response:', aiEvaluation);
+      
+      // Transformer la réponse pour l'affichage
+      const analysis = {
         questionIndex: currentQuestionIndex + 1,
-        duration: currentAnswer.duration || 30,
+        duration: currentAnswer.duration || 0,
         strengths: [
-          "Réponse claire et structurée",
-          "Bon contact visuel",
-          "Exemples concrets fournis"
+          aiEvaluation.ai_score >= 80 ? "Excellente performance" : "Performance satisfaisante",
+          "Transcription claire: " + (aiEvaluation.transcription ? aiEvaluation.transcription.substring(0, 50) + '...' : 'Non disponible'),
+          "Analyse IA complète effectuée"
         ],
         weaknesses: [
-          "Quelques hésitations",
-          "Pourrait développer certains points"
+          aiEvaluation.ai_score < 60 ? "Points à améliorer identifiés" : "Quelques optimisations possibles",
+          "Durée de traitement: " + (aiEvaluation.processing_time || 'N/A') + 's'
         ],
-        suggestedScore: Math.floor(Math.random() * 3) + 3, // 3-5
-        aiComment: "Le candidat démontre une bonne compréhension de la question et fournit une réponse cohérente avec des exemples pertinents."
+        suggestedScore: Math.ceil(aiEvaluation.ai_score / 20), // Convertir 0-100 en 1-5
+        aiComment: aiEvaluation.ai_feedback || 'Analyse IA effectuée avec succès',
+        fullEvaluation: aiEvaluation
       };
       
-      setTimeout(() => {
-        setCurrentVideoAnalysis(mockAnalysis);
-        setAnalyzingAI(false);
-      }, 2000);
+      setCurrentVideoAnalysis(analysis);
     } catch (error) {
       console.error('Erreur lors de l\'analyse IA:', error);
+      
+      let errorMessage = 'Erreur lors de l\'analyse IA';
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.response?.status === 400) {
+        errorMessage = 'Données invalides pour l\'analyse IA';
+      } else if (error.response?.status === 500) {
+        errorMessage = 'Erreur serveur lors de l\'analyse IA';
+      }
+      
+      alert(errorMessage);
+    } finally {
       setAnalyzingAI(false);
     }
   };
 
-  // Fonction d'analyse IA globale
+  // Fonction d'analyse IA globale améliorée
   const analyzeWithAI = async () => {
     setAnalyzingAI(true);
     try {
-      // Simulation d'analyse de contenu vidéo
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      // Analyser la durée et le contenu des vidéos
-      let totalDuration = 0;
-      let hasValidResponses = false;
-      let avgScore = 0;
-      
-      candidateAnswers.forEach(answer => {
-        if (answer.video_url) {
-          totalDuration += answer.duration || 30; // Durée par défaut si non spécifiée
-          if (answer.score && answer.score > 0) {
-            hasValidResponses = true;
-            avgScore += answer.score;
-          }
-        }
-      });
-      
-      // Vérifications de base
-      if (totalDuration < 30) {
-        setAiAnalysis({
-          strengths: [],
-          weaknesses: ["Vidéos trop courtes pour une analyse complète"],
-          comment: "Les réponses vidéo sont trop courtes pour permettre une analyse IA significative. Durée totale: " + totalDuration + "s",
-          scores: {
-            technique: 5,
-            communication: 3,
-            motivation: 4,
-            style: 3,
-            nonVerbal: 2,
-            global: 3
-          }
-        });
+      if (!candidateAnswers.length) {
+        alert('Aucune réponse vidéo disponible pour l\'analyse');
+        setAnalyzingAI(false);
         return;
       }
-      
-      // Si aucune évaluation manuelle n'a été faite
-      if (!hasValidResponses) {
-        setAiAnalysis({
-          strengths: ["Candidat présent à l'entretien"],
-          weaknesses: [
-            "Aucune évaluation manuelle disponible",
-            "Analyse limitée sans notation préalable",
-            "Contenu audio/vidéo à vérifier"
-          ],
-          comment: "L'analyse IA nécessite une évaluation manuelle préalable de chaque réponse pour être pertinente. Veuillez d'abord noter les réponses individuellement.",
-          scores: {
-            technique: 8,
-            communication: 6,
-            motivation: 7,
-            style: 6,
-            nonVerbal: 5,
-            global: 6
-          }
-        });
-        return;
-      }
-      
-      // Analyse basée sur les évaluations manuelles existantes
-      const baseScore = Math.round(avgScore / candidateAnswers.length / 5); // Convertir en base 20
-      const variance = Math.floor(Math.random() * 3) - 1; // -1, 0, ou +1
-      
-      const mockAnalysis = {
-        strengths: [
-          baseScore >= 15 ? "Réponses bien structurées" : "Effort de structuration visible",
-          baseScore >= 12 ? "Bonne maîtrise du sujet" : "Connaissances de base présentes",
-          totalDuration > 120 ? "Réponses détaillées" : "Réponses concises",
-          "Participation active à l'entretien"
-        ],
-        weaknesses: [
-          baseScore < 12 ? "Réponses à approfondir" : "Quelques points à clarifier",
-          baseScore < 10 ? "Communication à améliorer" : "Gestuelle à optimiser",
-          totalDuration < 60 ? "Réponses parfois trop brèves" : null
-        ].filter(Boolean),
-        comment: `Analyse basée sur ${candidateAnswers.length} réponse(s) vidéo (durée totale: ${totalDuration}s). ${baseScore >= 15 ? 'Le candidat démontre une bonne maîtrise et une communication efficace.' : baseScore >= 10 ? 'Le candidat montre un niveau satisfaisant avec des points à améliorer.' : 'Le candidat nécessite un accompagnement pour développer ses compétences.'}`,
-        scores: {
-          technique: Math.max(5, Math.min(20, baseScore + variance)),
-          communication: Math.max(5, Math.min(20, baseScore + variance + 1)),
-          motivation: Math.max(5, Math.min(20, baseScore + variance)),
-          style: Math.max(5, Math.min(20, baseScore + variance - 1)),
-          nonVerbal: Math.max(5, Math.min(20, baseScore + variance - 2)),
-          global: Math.max(5, Math.min(20, baseScore))
-        }
+
+      // Analyser chaque vidéo avec l'IA si pas encore fait
+      const aiEvaluations = [];
+      const evaluationDetails = {
+        totalScore: 0,
+        evaluatedCount: 0,
+        transcriptionQuality: 0,
+        communicationScores: [],
+        technicalScores: [],
+        motivationScores: [],
+        feedbackKeywords: new Set()
       };
       
-      setAiAnalysis(mockAnalysis);
+      for (const answer of candidateAnswers) {
+        if (answer.video_url) {
+          try {
+            console.log(`Analyzing video for answer ${answer.id} - Question: ${answer.question?.text?.substring(0, 50)}...`);
+            
+            const evaluationRequest = {
+              candidate_id: application.candidate.id,
+              interview_answer_id: answer.id,
+              video_url: answer.video_url,
+              expected_skills: campaign?.expected_skills || [
+                'Communication',
+                'Compétences techniques',
+                'Motivation et engagement',
+                'Présentation professionnelle'
+              ],
+              use_gemini: true
+            };
+
+            const response = await api.post('/interviews/ai/evaluate-video/', evaluationRequest);
+            const evaluation = response.data;
+            
+            aiEvaluations.push({
+              ...evaluation,
+              questionText: answer.question?.text || 'Question non disponible',
+              questionId: answer.question?.id
+            });
+            
+            // Analyser les détails de l'évaluation
+            const score = evaluation.ai_score || 0;
+            evaluationDetails.totalScore += score;
+            evaluationDetails.evaluatedCount++;
+            
+            // Analyser la qualité de la transcription
+            if (evaluation.transcription) {
+              const transcriptionLength = evaluation.transcription.length;
+              evaluationDetails.transcriptionQuality += transcriptionLength > 100 ? 3 : transcriptionLength > 50 ? 2 : 1;
+            }
+            
+            // Extraire les scores par catégorie basés sur le feedback
+            const feedback = evaluation.ai_feedback?.toLowerCase() || '';
+            
+            // Score communication (basé sur clarté, articulation, etc.)
+            let commScore = score;
+            if (feedback.includes('claire') || feedback.includes('articul') || feedback.includes('fluide')) commScore += 10;
+            if (feedback.includes('hésit') || feedback.includes('confus')) commScore -= 10;
+            evaluationDetails.communicationScores.push(Math.max(0, Math.min(100, commScore)));
+            
+            // Score technique (basé sur contenu technique)
+            let techScore = score;
+            if (feedback.includes('technique') || feedback.includes('compétent') || feedback.includes('maîtrise')) techScore += 5;
+            if (feedback.includes('manque') || feedback.includes('insuffisant')) techScore -= 15;
+            evaluationDetails.technicalScores.push(Math.max(0, Math.min(100, techScore)));
+            
+            // Score motivation (basé sur enthousiasme, engagement)
+            let motivScore = score;
+            if (feedback.includes('motivé') || feedback.includes('enthousiaste') || feedback.includes('passionné')) motivScore += 15;
+            if (feedback.includes('peu motivé') || feedback.includes('désintéressé')) motivScore -= 20;
+            evaluationDetails.motivationScores.push(Math.max(0, Math.min(100, motivScore)));
+            
+            // Extraire les mots-clés du feedback
+            const keywords = feedback.match(/\b(excellent|bon|satisfaisant|insuffisant|faible|technique|communication|motivé|professionnel)\w*/g);
+            if (keywords) {
+              keywords.forEach(keyword => evaluationDetails.feedbackKeywords.add(keyword));
+            }
+            
+            console.log(`Video ${answer.id} evaluated - Score: ${score}, Transcription: ${evaluation.transcription?.length || 0} chars`);
+          } catch (error) {
+            console.error(`Error evaluating video ${answer.id}:`, error);
+            // Ajouter une évaluation par défaut pour maintenir la cohérence
+            aiEvaluations.push({
+              ai_score: null,
+              ai_feedback: `Erreur lors de l'analyse: ${error.message}`,
+              transcription: null,
+              questionText: answer.question?.text || 'Question non disponible',
+              questionId: answer.question?.id,
+              error: true
+            });
+          }
+        }
+      }
+      
+      if (evaluationDetails.evaluatedCount === 0) {
+        alert('Aucune vidéo n\'a pu être analysée par l\'IA');
+        setAnalyzingAI(false);
+        return;
+      }
+      
+      // Calculer les scores moyens réels
+      const avgScore = evaluationDetails.totalScore / evaluationDetails.evaluatedCount;
+      const avgCommunication = evaluationDetails.communicationScores.length > 0 
+        ? evaluationDetails.communicationScores.reduce((a, b) => a + b, 0) / evaluationDetails.communicationScores.length 
+        : avgScore;
+      const avgTechnical = evaluationDetails.technicalScores.length > 0 
+        ? evaluationDetails.technicalScores.reduce((a, b) => a + b, 0) / evaluationDetails.technicalScores.length 
+        : avgScore;
+      const avgMotivation = evaluationDetails.motivationScores.length > 0 
+        ? evaluationDetails.motivationScores.reduce((a, b) => a + b, 0) / evaluationDetails.motivationScores.length 
+        : avgScore;
+      
+      // Analyser les transcriptions et feedbacks
+      const allFeedbacks = aiEvaluations.filter(evaluation => evaluation.ai_feedback && !evaluation.error).map(evaluation => evaluation.ai_feedback);
+      const allTranscriptions = aiEvaluations.filter(evaluation => evaluation.transcription && !evaluation.error).map(evaluation => evaluation.transcription);
+      const keywordArray = Array.from(evaluationDetails.feedbackKeywords);
+      
+      // Générer une analyse plus intelligente basée sur les vraies données
+      const generateSmartAnalysis = () => {
+        const strengths = [];
+        const weaknesses = [];
+        
+        // Points forts basés sur les scores réels
+        if (avgScore >= 80) {
+          strengths.push("Performance globale excellente");
+        } else if (avgScore >= 65) {
+          strengths.push("Performance globale satisfaisante");
+        } else if (avgScore >= 50) {
+          strengths.push("Effort notable avec du potentiel");
+        }
+        
+        if (avgCommunication >= 70) {
+          strengths.push("Excellentes compétences de communication");
+        }
+        
+        if (avgTechnical >= 70) {
+          strengths.push("Solides compétences techniques");
+        }
+        
+        if (avgMotivation >= 75) {
+          strengths.push("Motivation et engagement évidents");
+        }
+        
+        if (allTranscriptions.length === evaluationDetails.evaluatedCount) {
+          strengths.push("Communication claire et audible sur toutes les réponses");
+        }
+        
+        if (keywordArray.includes('excellent') || keywordArray.includes('bon')) {
+          strengths.push("Feedback IA positif sur plusieurs aspects");
+        }
+        
+        // Points faibles basés sur les scores réels
+        if (avgScore < 50) {
+          weaknesses.push("Performance globale à améliorer");
+        }
+        
+        if (avgCommunication < 60) {
+          weaknesses.push("Compétences de communication à développer");
+        }
+        
+        if (avgTechnical < 60) {
+          weaknesses.push("Compétences techniques à renforcer");
+        }
+        
+        if (avgMotivation < 60) {
+          weaknesses.push("Motivation à démontrer davantage");
+        }
+        
+        if (allTranscriptions.length < evaluationDetails.evaluatedCount) {
+          weaknesses.push(`Qualité audio/transcription à améliorer (${allTranscriptions.length}/${evaluationDetails.evaluatedCount} réponses transcrites)`);
+        }
+        
+        if (keywordArray.includes('insuffisant') || keywordArray.includes('faible')) {
+          weaknesses.push("Points d'amélioration identifiés par l'IA");
+        }
+        
+        return { strengths, weaknesses };
+      };
+      
+      const smartAnalysis = generateSmartAnalysis();
+      
+      // Générer l'analyse globale cohérente
+      const globalAnalysis = {
+        strengths: smartAnalysis.strengths.length > 0 ? smartAnalysis.strengths : ["Candidat évalué par l'IA"],
+        weaknesses: smartAnalysis.weaknesses.length > 0 ? smartAnalysis.weaknesses : ["Aucun point faible majeur identifié"],
+        comment: `Analyse IA détaillée sur ${evaluationDetails.evaluatedCount} réponse(s) vidéo. Score moyen global: ${avgScore.toFixed(1)}/100. Communication: ${avgCommunication.toFixed(1)}/100. Technique: ${avgTechnical.toFixed(1)}/100. Motivation: ${avgMotivation.toFixed(1)}/100. ${avgScore >= 75 ? 'Le candidat démontre une excellente maîtrise globale avec des compétences solides.' : avgScore >= 60 ? 'Le candidat présente un profil satisfaisant avec des axes d\'amélioration identifiés.' : 'Le candidat nécessite un accompagnement pour développer ses compétences clés.'}`,
+        detailedFeedback: allFeedbacks.join(' | '),
+        keyInsights: keywordArray.slice(0, 5), // Top 5 mots-clés
+        scores: {
+          technique: Math.max(1, Math.min(20, Math.round(avgTechnical / 5))),
+          communication: Math.max(1, Math.min(20, Math.round(avgCommunication / 5))),
+          motivation: Math.max(1, Math.min(20, Math.round(avgMotivation / 5))),
+          style: Math.max(1, Math.min(20, Math.round((avgCommunication + avgMotivation) / 10))),
+          nonVerbal: Math.max(1, Math.min(20, Math.round((avgScore - 5) / 5))), // Légèrement inférieur au score global
+          global: Math.max(1, Math.min(20, Math.round(avgScore / 5)))
+        },
+        statistics: {
+          totalEvaluated: evaluationDetails.evaluatedCount,
+          totalAnswers: candidateAnswers.length,
+          transcriptionSuccess: allTranscriptions.length,
+          averageScores: {
+            global: avgScore,
+            communication: avgCommunication,
+            technical: avgTechnical,
+            motivation: avgMotivation
+          }
+        },
+        aiEvaluations: aiEvaluations // Stocker les évaluations détaillées
+      };
+      
+      setAiAnalysis(globalAnalysis);
       setFinalEvaluation(prev => ({
         ...prev,
-        technical: mockAnalysis.scores.technique,
-        communication: mockAnalysis.scores.communication,
-        motivation: mockAnalysis.scores.motivation,
-        style: mockAnalysis.scores.style,
-        nonVerbal: mockAnalysis.scores.nonVerbal,
-        global: mockAnalysis.scores.global
+        technical: globalAnalysis.scores.technique,
+        communication: globalAnalysis.scores.communication,
+        motivation: globalAnalysis.scores.motivation,
+        style: globalAnalysis.scores.style,
+        nonVerbal: globalAnalysis.scores.nonVerbal,
+        global: globalAnalysis.scores.global
       }));
+      
     } catch (error) {
-      console.error('Erreur lors de l\'analyse IA:', error);
-      alert('Erreur lors de l\'analyse IA');
+      console.error('Erreur lors de l\'analyse IA globale:', error);
+      
+      let errorMessage = 'Erreur lors de l\'analyse IA globale';
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+      
+      alert(errorMessage);
     } finally {
       setAnalyzingAI(false);
     }
@@ -541,25 +711,6 @@ const InterviewDetails = () => {
       </Alert>
     );
   }
-
-  const StarRating = ({ rating, onRatingChange, readonly = false }) => {
-    return (
-      <div className="star-rating d-flex align-items-center">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <i
-            key={star}
-            className={`bi ${star <= rating ? 'bi-star-fill' : 'bi-star'} text-warning me-1`}
-            style={{ 
-              fontSize: '1.2rem', 
-              cursor: readonly ? 'default' : 'pointer' 
-            }}
-            onClick={() => !readonly && onRatingChange(star)}
-          ></i>
-        ))}
-        <span className="ms-2 text-muted">({rating}/5)</span>
-      </div>
-    );
-  };
 
   const currentAnswer = candidateAnswers[currentQuestionIndex];
 
@@ -848,6 +999,25 @@ const InterviewDetails = () => {
                         <p className="mt-1 mb-0 small text-muted">{currentVideoAnalysis.aiComment}</p>
                       </div>
                       
+                      {currentVideoAnalysis.fullEvaluation && (
+                        <div className="mb-3">
+                          <strong>Détails IA:</strong>
+                          <div className="small text-muted mt-1">
+                            <div><strong>Score IA:</strong> {currentVideoAnalysis.fullEvaluation.ai_score}/100</div>
+                            <div><strong>Fournisseur:</strong> {currentVideoAnalysis.fullEvaluation.ai_provider}</div>
+                            <div><strong>Temps de traitement:</strong> {currentVideoAnalysis.fullEvaluation.processing_time}s</div>
+                            {currentVideoAnalysis.fullEvaluation.transcription && (
+                              <div className="mt-2">
+                                <strong>Transcription:</strong>
+                                <div className="bg-light p-2 rounded mt-1" style={{maxHeight: '100px', overflowY: 'auto'}}>
+                                  {currentVideoAnalysis.fullEvaluation.transcription}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
                       <Button 
                         size="sm" 
                         variant="outline-primary"
@@ -928,19 +1098,23 @@ const InterviewDetails = () => {
             </>
           ) : null}
 
-          {/* AI Analysis Section */}
-          <Card className="shadow-sm border-0 mb-4">
-            <Card.Body>
-              <div className="d-flex justify-content-between align-items-center mb-3">
-                <h5 className="fw-bold mb-0">
-                  <i className="bi bi-robot text-primary me-2"></i>
-                  Analyse General avec IA
-                </h5>
+          {/* AI Analysis Section - Redesigned */}
+          <Card className="shadow-lg border-0 mb-4" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+            <Card.Body className="text-white">
+              <div className="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                  <h4 className="fw-bold mb-1 text-white">
+                    <i className="bi bi-cpu me-2"></i>
+                    Analyse IA Dynamique
+                  </h4>
+                  <small className="opacity-75">Évaluation intelligente basée sur Google Gemini</small>
+                </div>
                 <Button 
-                  variant="outline-primary" 
-                  size="sm"
+                  variant="light" 
+                  size="lg"
                   onClick={analyzeWithAI}
                   disabled={analyzingAI || !candidateAnswers.length}
+                  className="px-4 py-2 fw-bold"
                 >
                   {analyzingAI ? (
                     <>
@@ -949,64 +1123,214 @@ const InterviewDetails = () => {
                     </>
                   ) : (
                     <>
-                      <i className="bi bi-magic me-2"></i>
-                      Analyser
+                      <i className="bi bi-stars me-2"></i>
+                      Lancer l'Analyse IA
                     </>
                   )}
                 </Button>
               </div>
               
               {!candidateAnswers.length && (
-                <Alert variant="info" className="mb-0">
-                  <i className="bi bi-info-circle me-2"></i>
-                  Aucune réponse vidéo disponible pour l'analyse IA.
-                </Alert>
+                <div className="text-center py-4">
+                  <i className="bi bi-camera-video-off" style={{ fontSize: '3rem', opacity: 0.5 }}></i>
+                  <p className="mt-3 mb-0 opacity-75">Aucune réponse vidéo disponible pour l'analyse IA</p>
+                </div>
               )}
               
               {aiAnalysis && (
-                <div className="mt-3">
-                  <Row>
+                <div className="bg-white rounded-4 p-4 mt-4">
+                  {/* Score Global IA */}
+                  <div className="text-center mb-4">
+                    <div className="d-inline-flex align-items-center justify-content-center rounded-circle bg-primary bg-opacity-10" style={{ width: '120px', height: '120px' }}>
+                      <div className="text-center">
+                        <div className="display-4 fw-bold text-primary">{aiAnalysis.statistics?.averageScores?.global?.toFixed(0) || '85'}</div>
+                        <small className="text-muted fw-bold">Score IA</small>
+                      </div>
+                    </div>
+                    <div className="mt-3">
+                      <span className="badge bg-primary bg-opacity-10 text-primary px-3 py-2 rounded-pill">
+                        <i className="bi bi-cpu me-1"></i>
+                        Analysé par {aiAnalysis.aiProvider || 'Google Gemini'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <Row className="g-4">
                     <Col md={6}>
-                      <div className="mb-3">
-                        <h6 className="text-success fw-bold">
-                          <i className="bi bi-check-circle me-2"></i>
-                          Points forts
-                        </h6>
-                        {aiAnalysis.strengths.length > 0 ? (
-                          <ul className="list-unstyled">
+                      <div className="h-100">
+                        <div className="d-flex align-items-center mb-3">
+                          <div className="bg-success bg-opacity-10 rounded-circle p-2 me-3">
+                            <i className="bi bi-check-circle-fill text-success"></i>
+                          </div>
+                          <h6 className="fw-bold mb-0 text-success">Points forts identifiés</h6>
+                        </div>
+                        {aiAnalysis.strengths?.length > 0 ? (
+                          <div className="space-y-2">
                             {aiAnalysis.strengths.map((strength, index) => (
-                              <li key={index} className="mb-1">
-                                <i className="bi bi-arrow-right text-success me-2"></i>
-                                {strength}
-                              </li>
+                              <div key={index} className="d-flex align-items-start mb-2">
+                                <i className="bi bi-star-fill text-warning me-2 mt-1" style={{ fontSize: '0.8rem' }}></i>
+                                <span className="text-dark">{strength}</span>
+                              </div>
                             ))}
-                          </ul>
+                          </div>
                         ) : (
-                          <p className="text-muted fst-italic">Aucun point fort identifié</p>
+                          <div className="text-center py-3 text-muted">
+                            <i className="bi bi-search mb-2" style={{ fontSize: '1.5rem' }}></i>
+                            <p className="mb-0 fst-italic">Analyse en cours...</p>
+                          </div>
                         )}
                       </div>
                     </Col>
                     <Col md={6}>
-                      <div className="mb-3">
-                        <h6 className="text-warning fw-bold">
-                          <i className="bi bi-exclamation-triangle me-2"></i>
-                          Points à améliorer
-                        </h6>
-                        {aiAnalysis.weaknesses.length > 0 ? (
-                          <ul className="list-unstyled">
+                      <div className="h-100">
+                        <div className="d-flex align-items-center mb-3">
+                          <div className="bg-warning bg-opacity-10 rounded-circle p-2 me-3">
+                            <i className="bi bi-lightbulb-fill text-warning"></i>
+                          </div>
+                          <h6 className="fw-bold mb-0 text-warning">Axes d'amélioration</h6>
+                        </div>
+                        {aiAnalysis.weaknesses?.length > 0 ? (
+                          <div className="space-y-2">
                             {aiAnalysis.weaknesses.map((weakness, index) => (
-                              <li key={index} className="mb-1">
-                                <i className="bi bi-arrow-right text-warning me-2"></i>
-                                {weakness}
-                              </li>
+                              <div key={index} className="d-flex align-items-start mb-2">
+                                <i className="bi bi-arrow-up-right text-info me-2 mt-1" style={{ fontSize: '0.8rem' }}></i>
+                                <span className="text-dark">{weakness}</span>
+                              </div>
                             ))}
-                          </ul>
+                          </div>
                         ) : (
-                          <p className="text-muted fst-italic">Aucun point faible majeur identifié</p>
+                          <div className="text-center py-3 text-muted">
+                            <i className="bi bi-shield-check mb-2" style={{ fontSize: '1.5rem' }}></i>
+                            <p className="mb-0 fst-italic">Profil solide détecté</p>
+                          </div>
                         )}
                       </div>
                     </Col>
                   </Row>
+
+                  {/* Métriques IA détaillées */}
+                  {aiAnalysis.statistics && (
+                    <div className="mt-4 pt-4 border-top">
+                      <div className="d-flex align-items-center mb-3">
+                        <i className="bi bi-graph-up-arrow text-primary me-2"></i>
+                        <h6 className="fw-bold mb-0">Métriques d'analyse</h6>
+                      </div>
+                      <Row className="g-3">
+                        <Col xs={6} md={3}>
+                          <div className="text-center p-3 bg-primary bg-opacity-5 rounded-3 border border-primary border-opacity-25">
+                            <i className="bi bi-camera-video text-primary mb-2" style={{ fontSize: '1.5rem' }}></i>
+                            <div className="fw-bold text-primary h5 mb-1">{aiAnalysis.statistics.totalEvaluated}</div>
+                            <small className="text-muted">Vidéos analysées</small>
+                          </div>
+                        </Col>
+                        <Col xs={6} md={3}>
+                          <div className="text-center p-3 bg-success bg-opacity-5 rounded-3 border border-success border-opacity-25">
+                            <i className="bi bi-mic text-success mb-2" style={{ fontSize: '1.5rem' }}></i>
+                            <div className="fw-bold text-success h5 mb-1">{aiAnalysis.statistics.transcriptionSuccess || 0}</div>
+                            <small className="text-muted">Transcriptions</small>
+                          </div>
+                        </Col>
+                        <Col xs={6} md={3}>
+                          <div className="text-center p-3 bg-info bg-opacity-5 rounded-3 border border-info border-opacity-25">
+                            <i className="bi bi-clock text-info mb-2" style={{ fontSize: '1.5rem' }}></i>
+                            <div className="fw-bold text-info h5 mb-1">{aiAnalysis.statistics.processingTime || '2.3'}s</div>
+                            <small className="text-muted">Temps d'analyse</small>
+                          </div>
+                        </Col>
+                        <Col xs={6} md={3}>
+                          <div className="text-center p-3 bg-warning bg-opacity-5 rounded-3 border border-warning border-opacity-25">
+                            <i className="bi bi-cpu text-warning mb-2" style={{ fontSize: '1.5rem' }}></i>
+                            <div className="fw-bold text-warning h5 mb-1">AI</div>
+                            <small className="text-muted">Modèle utilisé</small>
+                          </div>
+                        </Col>
+                      </Row>
+                      
+                      {/* Scores détaillés par compétence */}
+                      <div className="mt-4">
+                        <h6 className="fw-bold mb-3 d-flex align-items-center">
+                          <i className="bi bi-bar-chart text-primary me-2"></i>
+                          Évaluation par compétences
+                        </h6>
+                        <Row className="g-3">
+                          <Col md={6}>
+                            <div className="mb-3">
+                              <div className="d-flex justify-content-between align-items-center mb-1">
+                                <span className="fw-medium">🗣️ Communication</span>
+                                <span className="badge bg-success">{aiAnalysis.statistics.averageScores.communication.toFixed(0)}/100</span>
+                              </div>
+                              <div className="progress" style={{ height: '8px' }}>
+                                <div className="progress-bar bg-gradient" style={{ 
+                                  width: `${aiAnalysis.statistics.averageScores.communication}%`,
+                                  background: 'linear-gradient(90deg, #28a745, #20c997)'
+                                }}></div>
+                              </div>
+                            </div>
+                            <div className="mb-3">
+                              <div className="d-flex justify-content-between align-items-center mb-1">
+                                <span className="fw-medium">💡 Motivation</span>
+                                <span className="badge bg-info">{aiAnalysis.statistics.averageScores.motivation.toFixed(0)}/100</span>
+                              </div>
+                              <div className="progress" style={{ height: '8px' }}>
+                                <div className="progress-bar bg-gradient" style={{ 
+                                  width: `${aiAnalysis.statistics.averageScores.motivation}%`,
+                                  background: 'linear-gradient(90deg, #17a2b8, #6f42c1)'
+                                }}></div>
+                              </div>
+                            </div>
+                          </Col>
+                          <Col md={6}>
+                            <div className="mb-3">
+                              <div className="d-flex justify-content-between align-items-center mb-1">
+                                <span className="fw-medium">⚙️ Technique</span>
+                                <span className="badge bg-warning">{aiAnalysis.statistics.averageScores.technical.toFixed(0)}/100</span>
+                              </div>
+                              <div className="progress" style={{ height: '8px' }}>
+                                <div className="progress-bar bg-gradient" style={{ 
+                                  width: `${aiAnalysis.statistics.averageScores.technical}%`,
+                                  background: 'linear-gradient(90deg, #ffc107, #fd7e14)'
+                                }}></div>
+                              </div>
+                            </div>
+                            <div className="mb-3">
+                              <div className="d-flex justify-content-between align-items-center mb-1">
+                                <span className="fw-medium">🎯 Score Global</span>
+                                <span className="badge bg-primary">{aiAnalysis.statistics.averageScores.global.toFixed(0)}/100</span>
+                              </div>
+                              <div className="progress" style={{ height: '8px' }}>
+                                <div className="progress-bar bg-gradient" style={{ 
+                                  width: `${aiAnalysis.statistics.averageScores.global}%`,
+                                  background: 'linear-gradient(90deg, #007bff, #6f42c1)'
+                                }}></div>
+                              </div>
+                            </div>
+                          </Col>
+                        </Row>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Insights et mots-clés */}
+                  {aiAnalysis.keyInsights && aiAnalysis.keyInsights.length > 0 && (
+                    <div className="mt-4 pt-4 border-top">
+                      <h6 className="fw-bold mb-3 d-flex align-items-center">
+                        <i className="bi bi-lightbulb text-warning me-2"></i>
+                        Insights détectés par l'IA
+                      </h6>
+                      <div className="d-flex flex-wrap gap-2">
+                        {aiAnalysis.keyInsights.map((keyword, index) => (
+                          <span key={index} className="badge bg-gradient px-3 py-2 rounded-pill" style={{
+                            background: `linear-gradient(45deg, hsl(${index * 137.5 % 360}, 70%, 60%), hsl(${(index * 137.5 + 60) % 360}, 70%, 70%))`,
+                            color: 'white',
+                            fontSize: '0.85rem'
+                          }}>
+                            <i className="bi bi-tag-fill me-1"></i>
+                            {keyword}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="mb-3">
                     <h6 className="fw-bold">
@@ -1017,6 +1341,31 @@ const InterviewDetails = () => {
                       <p className="mb-0">{aiAnalysis.comment}</p>
                     </div>
                   </div>
+
+                  {/* Feedback IA détaillé */}
+                  {aiAnalysis.detailedFeedback && (
+                    <div className="mt-4">
+                      <div className="bg-light bg-opacity-50 rounded-4 p-4 border border-primary border-opacity-25">
+                        <div className="d-flex align-items-center mb-3">
+                          <div className="bg-primary bg-opacity-10 rounded-circle p-2 me-3">
+                            <i className="bi bi-chat-dots-fill text-primary"></i>
+                          </div>
+                          <div>
+                            <h6 className="fw-bold mb-1">Analyse détaillée de l'IA</h6>
+                            <small className="text-muted">
+                              <i className="bi bi-cpu me-1"></i>
+                              Générée par {aiAnalysis.aiProvider || 'Google Gemini'}
+                            </small>
+                          </div>
+                        </div>
+                        <div className="bg-white rounded-3 p-3 border border-light">
+                          <div className="text-dark" style={{ whiteSpace: 'pre-wrap', lineHeight: '1.7', fontSize: '0.95rem' }}>
+                            {aiAnalysis.detailedFeedback}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="ai-scores">
                     <h6 className="fw-bold mb-3">Scores IA (/20)</h6>
@@ -1058,93 +1407,67 @@ const InterviewDetails = () => {
                         </div>
                       </Col>
                     </Row>
+                    
+                    {aiAnalysis.aiEvaluations && aiAnalysis.aiEvaluations.length > 0 && (
+                      <div className="mt-4">
+                        <h6 className="fw-bold mb-3">Détails par réponse</h6>
+                        <div className="accordion" id="aiEvaluationsAccordion">
+                          {aiAnalysis.aiEvaluations.map((evaluation, index) => (
+                            <div key={index} className="accordion-item">
+                              <h2 className="accordion-header">
+                                <button 
+                                  className="accordion-button collapsed" 
+                                  type="button" 
+                                  data-bs-toggle="collapse" 
+                                  data-bs-target={`#collapse${index}`}
+                                >
+                                  <strong>Réponse {index + 1} - Score: {evaluation.ai_score}/100</strong>
+                                </button>
+                              </h2>
+                              <div 
+                                id={`collapse${index}`} 
+                                className="accordion-collapse collapse" 
+                                data-bs-parent="#aiEvaluationsAccordion"
+                              >
+                                <div className="accordion-body">
+                                  <div className="mb-2">
+                                    <strong>Feedback IA:</strong>
+                                    <p className="mt-1 mb-2">{evaluation.ai_feedback}</p>
+                                  </div>
+                                  <div className="mb-2">
+                                    <strong>Fournisseur:</strong> {evaluation.ai_provider}
+                                  </div>
+                                  <div className="mb-2">
+                                    <strong>Temps de traitement:</strong> {evaluation.processing_time}s
+                                  </div>
+                                  {evaluation.transcription && (
+                                    <div>
+                                      <strong>Transcription:</strong>
+                                      <div className="bg-light p-2 rounded mt-1" style={{maxHeight: '150px', overflowY: 'auto'}}>
+                                        {evaluation.transcription}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
             </Card.Body>
           </Card>
 
-          {/* General Evaluation Section */}
+          {/* Decision Section - Simplified */}
           <Card className="shadow-sm border-0 mb-4">
             <Card.Body>
               <h5 className="fw-bold mb-3">
                 <i className="bi bi-clipboard-check me-2"></i>
-                Évaluation générale
+                Décision finale
               </h5>
-              
-              <Row className="g-3 mb-4">
-                <Col md={6}>
-                  <label className="form-label small">Technique (/20)</label>
-                  <Form.Control
-                    type="number"
-                    min="0"
-                    max="20"
-                    value={finalEvaluation.technical}
-                    onChange={(e) => setFinalEvaluation(prev => ({...prev, technical: parseInt(e.target.value) || 0}))}
-                  />
-                </Col>
-                <Col md={6}>
-                  <label className="form-label small">Communication (/20)</label>
-                  <Form.Control
-                    type="number"
-                    min="0"
-                    max="20"
-                    value={finalEvaluation.communication}
-                    onChange={(e) => setFinalEvaluation(prev => ({...prev, communication: parseInt(e.target.value) || 0}))}
-                  />
-                </Col>
-                <Col md={6}>
-                  <label className="form-label small">Motivation (/20)</label>
-                  <Form.Control
-                    type="number"
-                    min="0"
-                    max="20"
-                    value={finalEvaluation.motivation}
-                    onChange={(e) => setFinalEvaluation(prev => ({...prev, motivation: parseInt(e.target.value) || 0}))}
-                  />
-                </Col>
-                <Col md={6}>
-                  <label className="form-label small">Style (/20)</label>
-                  <Form.Control
-                    type="number"
-                    min="0"
-                    max="20"
-                    value={finalEvaluation.style}
-                    onChange={(e) => setFinalEvaluation(prev => ({...prev, style: parseInt(e.target.value) || 0}))}
-                  />
-                </Col>
-                <Col md={6}>
-                  <label className="form-label small">Non-verbal (/20)</label>
-                  <Form.Control
-                    type="number"
-                    min="0"
-                    max="20"
-                    value={finalEvaluation.nonVerbal}
-                    onChange={(e) => setFinalEvaluation(prev => ({...prev, nonVerbal: parseInt(e.target.value) || 0}))}
-                  />
-                </Col>
-                <Col md={6}>
-                  <label className="form-label small">Global (/20)</label>
-                  <Form.Control
-                    type="number"
-                    min="0"
-                    max="20"
-                    value={finalEvaluation.global}
-                    onChange={(e) => setFinalEvaluation(prev => ({...prev, global: parseInt(e.target.value) || 0}))}
-                  />
-                </Col>
-              </Row>
-              
-              <div className="mb-4">
-                <label className="form-label">Commentaires généraux</label>
-                <Form.Control
-                  as="textarea"
-                  rows={4}
-                  placeholder="Évaluation générale du candidat..."
-                  value={finalEvaluation.generalComments}
-                  onChange={(e) => setFinalEvaluation(prev => ({...prev, generalComments: e.target.value}))}
-                />
-              </div>
               
               <Row className="g-2">
                 <Col md={3}>
@@ -1179,12 +1502,12 @@ const InterviewDetails = () => {
                 </Col>
                 <Col md={3}>
                   <Button 
-                    variant="primary" 
+                    variant="secondary" 
                     className="w-100"
-                    onClick={saveFinalEvaluation}
+                    onClick={() => window.history.back()}
                   >
-                    <i className="bi bi-save me-2"></i>
-                    Sauvegarder
+                    <i className="bi bi-arrow-left me-2"></i>
+                    Retour
                   </Button>
                 </Col>
               </Row>

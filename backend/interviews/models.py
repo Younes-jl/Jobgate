@@ -417,3 +417,141 @@ class JobApplication(models.Model):
     
     def __str__(self):
         return f"Candidature de {self.candidate.username} pour {self.job_offer.title}"
+
+
+class AiEvaluation(models.Model):
+    """
+    Modèle représentant une évaluation IA d'une réponse vidéo d'entretien.
+    Stocke la transcription, le score et le feedback généré par l'IA.
+    """
+    AI_PROVIDER_CHOICES = [
+        ('gemini', 'Google Gemini'),
+        ('huggingface', 'Hugging Face'),
+        ('openai', 'OpenAI'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'En attente'),
+        ('processing', 'En cours de traitement'),
+        ('completed', 'Terminée'),
+        ('failed', 'Échec'),
+    ]
+
+    # Relations
+    candidate = models.ForeignKey(
+        CustomUser, 
+        on_delete=models.CASCADE, 
+        related_name="ai_evaluations", 
+        verbose_name="Candidat"
+    )
+    interview_answer = models.OneToOneField(
+        InterviewAnswer,
+        on_delete=models.CASCADE,
+        related_name="ai_evaluation",
+        verbose_name="Réponse d'entretien"
+    )
+    
+    # Données de transcription
+    transcription = models.TextField(
+        verbose_name="Transcription",
+        help_text="Texte transcrit de la vidéo via Whisper",
+        blank=True,
+        null=True
+    )
+    
+    # Évaluation IA
+    ai_score = models.FloatField(
+        verbose_name="Score IA",
+        help_text="Score généré par l'IA (0-100)",
+        null=True,
+        blank=True
+    )
+    ai_feedback = models.TextField(
+        verbose_name="Feedback IA",
+        help_text="Commentaires détaillés générés par l'IA",
+        blank=True,
+        null=True
+    )
+    
+    # Métadonnées du traitement
+    ai_provider = models.CharField(
+        max_length=20,
+        choices=AI_PROVIDER_CHOICES,
+        verbose_name="Fournisseur IA",
+        help_text="Service IA utilisé pour l'évaluation"
+    )
+    
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+        verbose_name="Statut"
+    )
+    
+    # Compétences attendues (JSON ou texte)
+    expected_skills = models.JSONField(
+        default=list,
+        verbose_name="Compétences attendues",
+        help_text="Liste des compétences à évaluer"
+    )
+    
+    # Détails techniques
+    processing_time = models.FloatField(
+        null=True,
+        blank=True,
+        verbose_name="Temps de traitement (secondes)",
+        help_text="Durée totale du traitement IA"
+    )
+    
+    error_message = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Message d'erreur",
+        help_text="Détails de l'erreur en cas d'échec"
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Date de création")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Dernière mise à jour")
+    completed_at = models.DateTimeField(null=True, blank=True, verbose_name="Date de completion")
+    
+    class Meta:
+        verbose_name = "Évaluation IA"
+        verbose_name_plural = "Évaluations IA"
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Évaluation IA - {self.candidate.username} - {self.interview_answer.question.campaign.title}"
+    
+    @property
+    def campaign(self):
+        """Accès rapide à la campagne via la réponse d'entretien"""
+        return self.interview_answer.question.campaign
+    
+    @property
+    def question(self):
+        """Accès rapide à la question via la réponse d'entretien"""
+        return self.interview_answer.question
+    
+    def get_score_percentage(self):
+        """Retourne le score sous forme de pourcentage formaté"""
+        if self.ai_score is not None:
+            return f"{self.ai_score:.1f}%"
+        return "N/A"
+    
+    def get_score_grade(self):
+        """Retourne une note qualitative basée sur le score"""
+        if self.ai_score is None:
+            return "Non évalué"
+        elif self.ai_score >= 90:
+            return "Excellent"
+        elif self.ai_score >= 80:
+            return "Très bien"
+        elif self.ai_score >= 70:
+            return "Bien"
+        elif self.ai_score >= 60:
+            return "Satisfaisant"
+        elif self.ai_score >= 50:
+            return "Passable"
+        else:
+            return "Insuffisant"

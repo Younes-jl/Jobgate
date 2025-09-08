@@ -6,7 +6,7 @@ import { useAuth } from '../auth/useAuth';
 import JobApplicationsList from '../Recruteur/JobApplicationsList';
 import { formatDate } from '../../utils/dateUtils';
 import api from '../../services/api';
-import { Modal, Button, Form, Card, Container, Row, Col, Alert } from 'react-bootstrap';
+import { Modal, Button, Form, Alert, Row, Col } from 'react-bootstrap';
 
 /**
  * Composant pour afficher les détails d'une offre d'emploi

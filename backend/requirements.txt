@@ -25,5 +25,9 @@ social-auth-core==4.7.0
 sqlparse==0.5.3
 tzdata==2025.2
 urllib3==2.5.0
-firebase-admin==6.2.0
 google-generativeai==0.3.2
+# AI Video Evaluation Dependencies
+openai-whisper==20231117
+torch==2.1.0
+transformers==4.35.0
+ffmpeg-python==0.2.0

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { fetchAllJobOffers } from './jobOffersApi';
 import { Link } from 'react-router-dom';
-import { Card, Container, Row, Col, Button, Badge } from 'react-bootstrap';
+import { Card, Container, Row, Col, Badge } from 'react-bootstrap';
 import { useAuth } from '../auth/useAuth';
 import './CandidateStyles.css';
 
@@ -12,8 +12,6 @@ const CandidateDashboard = () => {
   const [jobOffers, setJobOffers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [candidateInfo, setCandidateInfo] = useState(null);
-  const [editMode, setEditMode] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {

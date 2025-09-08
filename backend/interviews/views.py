@@ -14,8 +14,8 @@ from users.models import CustomUser
 from django.utils import timezone
 from django.http import JsonResponse
 from django.db.models import Q
-from .models import JobOffer, InterviewCampaign, CampaignLink, InterviewQuestion, InterviewAnswer, JobApplication
-from .serializers import JobOfferSerializer, InterviewCampaignSerializer, InterviewCampaignCreateSerializer, CampaignLinkSerializer, InterviewQuestionSerializer, InterviewAnswerSerializer, JobApplicationSerializer
+from .models import JobOffer, InterviewCampaign, CampaignLink, InterviewQuestion, InterviewAnswer, JobApplication, AiEvaluation
+from .serializers import JobOfferSerializer, InterviewCampaignSerializer, InterviewCampaignCreateSerializer, CampaignLinkSerializer, InterviewQuestionSerializer, InterviewAnswerSerializer, JobApplicationSerializer, AiEvaluationSerializer, EvaluateVideoRequestSerializer, EvaluateVideoResponseSerializer
 from .ai_service import AIInterviewQuestionGenerator, analyze_question_quality
 from django.core.mail import send_mail
 from .cloudinary_service import CloudinaryVideoService
@@ -1323,3 +1323,268 @@ class AIQuestionTemplatesView(APIView):
                 'error': 'Erreur lors de la récupération des modèles de questions.',
                 'details': str(e) if settings.DEBUG else None
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class EvaluateVideoView(APIView):
+    """
+    Vue API pour l'évaluation IA des réponses vidéo d'entretien.
+    
+    Fonctionnalités:
+    1. Télécharge la vidéo depuis Cloudinary
+    2. Transcrit avec Whisper
+    3. Analyse avec Gemini ou Hugging Face
+    4. Stocke les résultats dans AiEvaluation
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        """
+        Évalue une réponse vidéo d'entretien avec l'IA.
+        
+        Body attendu:
+        {
+            "candidate_id": 1,
+            "interview_answer_id": 10,
+            "video_url": "https://res.cloudinary.com/xxx/video/upload/...",
+            "expected_skills": ["Django", "React", "Agile"],
+            "use_gemini": true
+        }
+        """
+        try:
+            # Valider les données d'entrée
+            serializer = EvaluateVideoRequestSerializer(data=request.data)
+            if not serializer.is_valid():
+                return Response({
+                    'error': 'Données invalides',
+                    'details': serializer.errors
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            validated_data = serializer.validated_data
+            candidate_id = validated_data['candidate_id']
+            interview_answer_id = validated_data['interview_answer_id']
+            video_url = validated_data['video_url']
+            expected_skills = validated_data.get('expected_skills', [])
+            use_gemini = validated_data.get('use_gemini', True)
+            
+            # Récupérer les objets
+            try:
+                candidate = CustomUser.objects.get(id=candidate_id, role='CANDIDAT')
+                interview_answer = InterviewAnswer.objects.get(id=interview_answer_id)
+            except CustomUser.DoesNotExist:
+                return Response({
+                    'error': 'Candidat introuvable'
+                }, status=status.HTTP_404_NOT_FOUND)
+            except InterviewAnswer.DoesNotExist:
+                return Response({
+                    'error': 'Réponse d\'entretien introuvable'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Vérifier que la réponse appartient au candidat
+            if interview_answer.candidate.id != candidate_id:
+                return Response({
+                    'error': 'La réponse d\'entretien n\'appartient pas au candidat spécifié'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Vérifier si une évaluation existe déjà
+            existing_evaluation = AiEvaluation.objects.filter(
+                candidate=candidate,
+                interview_answer=interview_answer
+            ).first()
+            
+            if existing_evaluation:
+                return Response({
+                    'error': 'Une évaluation IA existe déjà pour cette réponse',
+                    'evaluation_id': existing_evaluation.id,
+                    'existing_evaluation': AiEvaluationSerializer(existing_evaluation).data
+                }, status=status.HTTP_409_CONFLICT)
+            
+            # Créer l'évaluation en statut "processing"
+            ai_evaluation = AiEvaluation.objects.create(
+                candidate=candidate,
+                interview_answer=interview_answer,
+                expected_skills=expected_skills,
+                ai_provider='gemini' if use_gemini else 'huggingface',
+                status='processing'
+            )
+            
+            logger.info(f"Début évaluation IA pour candidat {candidate_id}, réponse {interview_answer_id}")
+            
+            # Importer et utiliser le service d'évaluation IA
+            from .ai_evaluation_service import ai_evaluation_service
+            
+            # Obtenir le texte de la question pour le contexte
+            question_text = interview_answer.question.text
+            
+            # Lancer l'évaluation
+            evaluation_result = ai_evaluation_service.evaluate_video_response(
+                video_url=video_url,
+                expected_skills=expected_skills,
+                question_text=question_text,
+                use_gemini=use_gemini
+            )
+            
+            # Mettre à jour l'évaluation avec les résultats
+            ai_evaluation.transcription = evaluation_result.get('transcription')
+            ai_evaluation.ai_score = evaluation_result.get('ai_score')
+            ai_evaluation.ai_feedback = evaluation_result.get('ai_feedback')
+            ai_evaluation.ai_provider = evaluation_result.get('ai_provider', ai_evaluation.ai_provider)
+            ai_evaluation.processing_time = evaluation_result.get('processing_time')
+            ai_evaluation.status = evaluation_result.get('status', 'failed')
+            ai_evaluation.error_message = evaluation_result.get('error_message')
+            
+            if ai_evaluation.status == 'completed':
+                ai_evaluation.completed_at = timezone.now()
+            
+            ai_evaluation.save()
+            
+            # Préparer la réponse
+            response_data = {
+                'transcription': ai_evaluation.transcription,
+                'ai_score': ai_evaluation.ai_score,
+                'ai_feedback': ai_evaluation.ai_feedback,
+                'ai_provider': ai_evaluation.ai_provider,
+                'processing_time': ai_evaluation.processing_time,
+                'status': ai_evaluation.status,
+                'error_message': ai_evaluation.error_message,
+                'evaluation_id': ai_evaluation.id
+            }
+            
+            response_serializer = EvaluateVideoResponseSerializer(data=response_data)
+            if response_serializer.is_valid():
+                logger.info(f"Évaluation IA terminée avec succès pour candidat {candidate_id}")
+                return Response(response_serializer.data, status=status.HTTP_200_OK)
+            else:
+                logger.warning(f"Erreur sérialisation réponse: {response_serializer.errors}")
+                return Response(response_data, status=status.HTTP_200_OK)
+                
+        except Exception as e:
+            logger.error(f"Erreur évaluation vidéo: {str(e)}")
+            
+            # Mettre à jour l'évaluation en cas d'erreur
+            if 'ai_evaluation' in locals():
+                ai_evaluation.status = 'failed'
+                ai_evaluation.error_message = str(e)
+                ai_evaluation.save()
+            
+            return Response({
+                'error': 'Erreur lors de l\'évaluation de la vidéo',
+                'details': str(e) if settings.DEBUG else None
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class AiEvaluationViewSet(ModelViewSet):
+    """
+    ViewSet pour la gestion des évaluations IA.
+    """
+    serializer_class = AiEvaluationSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        """Filtrer les évaluations selon le type d'utilisateur"""
+        user = self.request.user
+        
+        if user.role == 'RECRUTEUR':
+            # Les recruteurs voient les évaluations des candidatures de leurs offres
+            return AiEvaluation.objects.filter(
+                interview_answer__question__campaign__job_offer__recruiter=user
+            ).select_related(
+                'candidate', 'interview_answer__question__campaign__job_offer'
+            ).order_by('-created_at')
+        
+        elif user.role == 'CANDIDAT':
+            # Les candidats voient seulement leurs propres évaluations
+            return AiEvaluation.objects.filter(
+                candidate=user
+            ).select_related(
+                'interview_answer__question__campaign__job_offer'
+            ).order_by('-created_at')
+        
+        else:
+            # Admins voient tout
+            return AiEvaluation.objects.all().select_related(
+                'candidate', 'interview_answer__question__campaign__job_offer'
+            ).order_by('-created_at')
+    
+    @action(detail=False, methods=['get'])
+    def by_campaign(self, request):
+        """Récupérer les évaluations par campagne"""
+        campaign_id = request.query_params.get('campaign_id')
+        
+        if not campaign_id:
+            return Response({
+                'error': 'campaign_id est requis'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            campaign = InterviewCampaign.objects.get(id=campaign_id)
+            
+            # Vérifier les permissions
+            if request.user.role == 'RECRUTEUR' and campaign.job_offer.recruiter != request.user:
+                return Response({
+                    'error': 'Accès non autorisé à cette campagne'
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            evaluations = AiEvaluation.objects.filter(
+                interview_answer__question__campaign=campaign
+            ).select_related(
+                'candidate', 'interview_answer__question'
+            ).order_by('-created_at')
+            
+            serializer = self.get_serializer(evaluations, many=True)
+            
+            return Response({
+                'campaign_id': campaign_id,
+                'campaign_title': campaign.title,
+                'evaluations': serializer.data,
+                'total_evaluations': evaluations.count()
+            }, status=status.HTTP_200_OK)
+            
+        except InterviewCampaign.DoesNotExist:
+            return Response({
+                'error': 'Campagne introuvable'
+            }, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=False, methods=['get'])
+    def by_candidate(self, request):
+        """Récupérer les évaluations par candidat"""
+        candidate_id = request.query_params.get('candidate_id')
+        
+        if not candidate_id:
+            return Response({
+                'error': 'candidate_id est requis'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            candidate = CustomUser.objects.get(id=candidate_id, role='CANDIDAT')
+            
+            # Vérifier les permissions
+            if request.user.role == 'CANDIDAT' and request.user.id != int(candidate_id):
+                return Response({
+                    'error': 'Accès non autorisé aux évaluations de ce candidat'
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            evaluations = AiEvaluation.objects.filter(
+                candidate=candidate
+            ).select_related(
+                'interview_answer__question__campaign__job_offer'
+            ).order_by('-created_at')
+            
+            # Pour les recruteurs, filtrer seulement leurs offres
+            if request.user.role == 'RECRUTEUR':
+                evaluations = evaluations.filter(
+                    interview_answer__question__campaign__job_offer__recruiter=request.user
+                )
+            
+            serializer = self.get_serializer(evaluations, many=True)
+            
+            return Response({
+                'candidate_id': candidate_id,
+                'candidate_name': f"{candidate.first_name} {candidate.last_name}" if candidate.first_name else candidate.username,
+                'evaluations': serializer.data,
+                'total_evaluations': evaluations.count()
+            }, status=status.HTTP_200_OK)
+            
+        except CustomUser.DoesNotExist:
+            return Response({
+                'error': 'Candidat introuvable'
+            }, status=status.HTTP_404_NOT_FOUND)

@@ -5,7 +5,7 @@
  * de l'état d'authentification et du rôle de l'utilisateur.
  */
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 
 // Importer les composants
 import LoginPage from './Components/auth/LoginPage';
@@ -65,30 +65,6 @@ const HomePage = () => {
 
 
 
-/**
- * Bouton de déconnexion
- * 
- * Permet à l'utilisateur de se déconnecter en supprimant les tokens
- * d'authentification et en déclenchant un événement de changement d'état.
- */
-function LogoutButton() {
-    const navigate = useNavigate();
-    const handleLogout = () => {
-        // Supprimer les tokens
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        
-        // Déclencher l'événement de changement d'authentification
-        window.dispatchEvent(new Event('storage'));
-        window.dispatchEvent(new CustomEvent('auth-change'));
-        
-        // Attendre un peu pour permettre la mise à jour de l'état
-        setTimeout(() => {
-            navigate('/');  // Redirection vers la page d'accueil au lieu de la page de connexion
-        }, 100);
-    };
-    return <button onClick={handleLogout} style={{ marginLeft: '15px', padding: '5px 10px' }}>Déconnexion</button>;
-}
 
 /**
  * Composant pour gérer l'affichage conditionnel de la navbar

@@ -1,0 +1,88 @@
+# Dockerfile avec support complet IA (Whisper + Torch + Transformers)
+# Build multi-étapes pour optimiser la taille et éviter les timeouts
+
+# Étape 1: Builder avec dépendances lourdes
+FROM python:3.11-slim as ai-builder
+
+# Variables d'environnement pour build optimisé
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+ENV PIP_DEFAULT_TIMEOUT=2000
+ENV PIP_RETRIES=5
+
+# Installer dépendances système pour compilation
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    build-essential \
+    python3-dev \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Créer répertoire pour les wheels
+WORKDIR /wheels
+
+# Pré-télécharger et compiler les dépendances IA lourdes
+RUN pip wheel --no-cache-dir \
+    torch==2.1.0 \
+    transformers==4.35.0 \
+    openai-whisper==20231117 \
+    ffmpeg-python==0.2.0
+
+# Étape 2: Image finale optimisée
+FROM python:3.11-slim
+
+# Variables d'environnement
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Installer dépendances système minimales + FFmpeg
+RUN apt-get update && apt-get install -y \
+    gcc \
+    postgresql-client \
+    curl \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Répertoire de travail
+WORKDIR /app
+
+# Copier les wheels pré-compilés
+COPY --from=ai-builder /wheels /wheels
+
+# Installer d'abord les dépendances de base
+RUN pip install --no-cache-dir \
+    Django==5.2.5 \
+    djangorestframework==3.16.0 \
+    django-cors-headers==4.7.0 \
+    djangorestframework_simplejwt==5.5.1 \
+    djoser==2.3.3 \
+    python-dotenv==1.0.0 \
+    cloudinary==1.36.0 \
+    requests==2.32.4 \
+    google-generativeai==0.3.2 \
+    psycopg2-binary==2.9.10
+
+# Installer les dépendances IA depuis les wheels pré-compilés
+RUN pip install --no-cache-dir --find-links /wheels \
+    torch==2.1.0 \
+    transformers==4.35.0 \
+    openai-whisper==20231117 \
+    ffmpeg-python==0.2.0
+
+# Nettoyer les wheels
+RUN rm -rf /wheels
+
+# Copier le code de l'application
+COPY . .
+
+# Convertir les fins de ligne et rendre le script exécutable
+RUN sed -i 's/\r$//' wait-for-db.sh && chmod +x wait-for-db.sh
+
+# Exposer le port
+EXPOSE 8000
+
+# Commande par défaut
+CMD ["./wait-for-db.sh", "db", "python", "manage.py", "runserver", "0.0.0.0:8000"]

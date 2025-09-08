@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import JobOffer, InterviewCampaign, InterviewQuestion, JobApplication, CampaignLink, InterviewAnswer
+from .models import JobOffer, InterviewCampaign, InterviewQuestion, JobApplication, CampaignLink, InterviewAnswer, AiEvaluation
 from users.models import CustomUser
 from users.serializers import UserSerializer
 
@@ -173,4 +173,115 @@ class InterviewAnswerSerializer(serializers.ModelSerializer):
         
         return super().create(validated_data)
 
+
+class AiEvaluationSerializer(serializers.ModelSerializer):
+    """Serializer pour les évaluations IA des réponses vidéo"""
+    candidate_name = serializers.SerializerMethodField()
+    question_text = serializers.CharField(source='interview_answer.question.text', read_only=True)
+    campaign_title = serializers.CharField(source='interview_answer.question.campaign.title', read_only=True)
+    video_url = serializers.CharField(source='interview_answer.cloudinary_secure_url', read_only=True)
+    score_percentage = serializers.SerializerMethodField()
+    score_grade = serializers.SerializerMethodField()
+    ai_provider_display = serializers.SerializerMethodField()
+    status_display = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = AiEvaluation
+        fields = [
+            'id', 'candidate', 'interview_answer', 'transcription', 'ai_score', 
+            'ai_feedback', 'ai_provider', 'status', 'expected_skills', 
+            'processing_time', 'error_message', 'created_at', 'updated_at', 
+            'completed_at', 'candidate_name', 'question_text', 'campaign_title',
+            'video_url', 'score_percentage', 'score_grade', 'ai_provider_display',
+            'status_display'
+        ]
+        read_only_fields = [
+            'id', 'created_at', 'updated_at', 'completed_at', 'candidate_name',
+            'question_text', 'campaign_title', 'video_url', 'score_percentage',
+            'score_grade', 'ai_provider_display', 'status_display'
+        ]
+    
+    def get_candidate_name(self, obj):
+        """Nom complet du candidat"""
+        if obj.candidate.first_name and obj.candidate.last_name:
+            return f"{obj.candidate.first_name} {obj.candidate.last_name}"
+        return obj.candidate.username
+    
+    def get_score_percentage(self, obj):
+        """Score sous forme de pourcentage"""
+        return obj.get_score_percentage()
+    
+    def get_score_grade(self, obj):
+        """Note qualitative du score"""
+        return obj.get_score_grade()
+    
+    def get_ai_provider_display(self, obj):
+        """Nom affiché du fournisseur IA"""
+        return dict(AiEvaluation.AI_PROVIDER_CHOICES).get(obj.ai_provider, obj.ai_provider)
+    
+    def get_status_display(self, obj):
+        """Statut affiché"""
+        return dict(AiEvaluation.STATUS_CHOICES).get(obj.status, obj.status)
+
+
+class EvaluateVideoRequestSerializer(serializers.Serializer):
+    """Serializer pour les requêtes d'évaluation vidéo"""
+    candidate_id = serializers.IntegerField(help_text="ID du candidat")
+    interview_answer_id = serializers.IntegerField(help_text="ID de la réponse d'entretien")
+    video_url = serializers.URLField(help_text="URL de la vidéo sur Cloudinary")
+    expected_skills = serializers.ListField(
+        child=serializers.CharField(max_length=100),
+        required=False,
+        default=list,
+        help_text="Liste des compétences attendues"
+    )
+    use_gemini = serializers.BooleanField(
+        default=True,
+        help_text="Utiliser Gemini AI (True) ou Hugging Face (False)"
+    )
+    
+    def validate_candidate_id(self, value):
+        """Valide que le candidat existe"""
+        try:
+            CustomUser.objects.get(id=value, role='CANDIDAT')
+        except CustomUser.DoesNotExist:
+            raise serializers.ValidationError("Candidat introuvable")
+        return value
+    
+    def validate_interview_answer_id(self, value):
+        """Valide que la réponse d'entretien existe"""
+        try:
+            InterviewAnswer.objects.get(id=value)
+        except InterviewAnswer.DoesNotExist:
+            raise serializers.ValidationError("Réponse d'entretien introuvable")
+        return value
+    
+    def validate(self, attrs):
+        """Validation croisée des données"""
+        candidate_id = attrs.get('candidate_id')
+        interview_answer_id = attrs.get('interview_answer_id')
+        
+        if candidate_id and interview_answer_id:
+            try:
+                answer = InterviewAnswer.objects.get(id=interview_answer_id)
+                if answer.candidate.id != candidate_id:
+                    raise serializers.ValidationError(
+                        "La réponse d'entretien n'appartient pas au candidat spécifié"
+                    )
+            except InterviewAnswer.DoesNotExist:
+                pass  # Déjà géré dans validate_interview_answer_id
+        
+        return attrs
+
+
+class EvaluateVideoResponseSerializer(serializers.Serializer):
+    """Serializer pour les réponses d'évaluation vidéo"""
+    transcription = serializers.CharField(allow_null=True)
+    ai_score = serializers.FloatField(allow_null=True)
+    ai_feedback = serializers.CharField(allow_null=True)
+    ai_provider = serializers.CharField(allow_null=True)
+    processing_time = serializers.FloatField(allow_null=True)
+    status = serializers.CharField()
+    error_message = serializers.CharField(allow_null=True)
+    evaluation_id = serializers.IntegerField(allow_null=True)
 

@@ -67,15 +67,15 @@ const CandidateDetails = () => {
     }
   };
 
-  const getStatusText = (status) => {
-    const statusMap = {
-      "EN_ATTENTE": "En attente",
-      "ACCEPTE": "Acceptées", 
-      "REFUSE": "Refusées",
-      "EN_COURS": "En cours"
-    };
-    return statusMap[status] || status;
-  };
+  // const getStatusText = (status) => {
+  //   const statusMap = {
+  //     "EN_ATTENTE": "En attente",
+  //     "ACCEPTE": "Acceptées", 
+  //     "REFUSE": "Refusées",
+  //     "EN_COURS": "En cours"
+  //   };
+  //   return statusMap[status] || status;
+  // };
 
   return (
     <Container fluid className="py-4">
