@@ -69,7 +69,7 @@ const CandidateNavbar = () => {
                 <div className="user-menu-email">{user?.email}</div>
               </div>
               <hr className="user-menu-divider" />
-              <Link className="user-menu-item" to="/candidate/profile" onClick={() => setOpenMenu(false)}>
+              <Link className="user-menu-item" to="/candidate/infos-personnelles" onClick={() => setOpenMenu(false)}>
                 <i className="bi bi-person me-2"></i>
                 Mon profil
               </Link>

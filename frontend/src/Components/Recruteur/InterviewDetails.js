@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Card, Row, Col, Badge, Button, Form, Alert, Spinner, Container } from 'react-bootstrap';
+import { Card, Row, Col, Badge, Button, Form, Alert, Spinner, Container, Modal } from 'react-bootstrap';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import './RecruiterStyles.css';
@@ -36,6 +36,9 @@ const InterviewDetails = () => {
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
   const [interviewLocation, setInterviewLocation] = useState('');
+  const [showCandidateDetailsModal, setShowCandidateDetailsModal] = useState(false);
+  const [candidateDetails, setCandidateDetails] = useState(null);
+  const [loadingCandidateDetails, setLoadingCandidateDetails] = useState(false);
   const videoRef = useRef(null);
 
   const fetchInterviewData = useCallback(async () => {
@@ -628,6 +631,22 @@ const InterviewDetails = () => {
     }
   };
 
+  // Fonction pour récupérer les détails complets du candidat
+  const fetchCandidateDetails = async () => {
+    if (!application?.candidate?.id) return;
+    
+    setLoadingCandidateDetails(true);
+    try {
+      const response = await api.get(`/interviews/candidates/${application.candidate.id}/details/`);
+      setCandidateDetails(response.data);
+    } catch (error) {
+      console.error('Erreur lors du chargement des détails du candidat:', error);
+      alert('Erreur lors du chargement des détails du candidat');
+    } finally {
+      setLoadingCandidateDetails(false);
+    }
+  };
+
   // Fonction pour inviter un manager
   const inviteManager = async (managerEmail, message = '') => {
     if (!application) return;
@@ -861,16 +880,32 @@ const InterviewDetails = () => {
                   </div>
                   <div className="mb-2">
                     <i className="bi bi-telephone me-2 text-muted"></i>
-                    <span>+212 6 12 34 56 78</span>
+                    <span>{application.candidate.phone || 'Téléphone non renseigné'}</span>
                   </div>
                   <div className="mb-2">
                     <i className="bi bi-geo-alt me-2 text-muted"></i>
-                    <span>Casablanca, Morocco</span>
+                    <span>{application.candidate.city || 'Ville non renseignée'}</span>
                   </div>
                   <div className="mb-2">
                     <i className="bi bi-mortarboard me-2 text-muted"></i>
-                    <span>Master en Génie informatique</span>
+                    <span>{application.candidate.education_level || 'Formation non renseignée'}</span>
                   </div>
+                </div>
+                
+                {/* Bouton pour voir les détails complets */}
+                <div className="mt-3">
+                  <Button 
+                    variant="outline-primary" 
+                    size="sm" 
+                    className="w-100"
+                    onClick={() => {
+                      setShowCandidateDetailsModal(true);
+                      fetchCandidateDetails();
+                    }}
+                  >
+                    <i className="bi bi-person-lines-fill me-2"></i>
+                    Voir les détails complets du candidat
+                  </Button>
                 </div>
               </Card.Body>
             </Card>
@@ -1746,6 +1781,190 @@ const InterviewDetails = () => {
           </div>
         </div>
       )}
+
+      {/* Modal pour afficher les détails complets du candidat */}
+      <Modal
+        show={showCandidateDetailsModal}
+        onHide={() => setShowCandidateDetailsModal(false)}
+        size="lg"
+        centered
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>
+            <i className="bi bi-person-lines-fill me-2"></i>
+            Détails complets du candidat
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {loadingCandidateDetails ? (
+            <div className="text-center py-4">
+              <Spinner animation="border" role="status">
+                <span className="visually-hidden">Chargement...</span>
+              </Spinner>
+              <p className="mt-2 text-muted">Chargement des détails du candidat...</p>
+            </div>
+          ) : candidateDetails ? (
+            <div>
+              {/* Informations personnelles */}
+              <div className="mb-4">
+                <h6 className="fw-bold text-primary mb-3">
+                  <i className="bi bi-person me-2"></i>
+                  Informations personnelles
+                </h6>
+                <Row>
+                  <Col md={6}>
+                    <div className="mb-2">
+                      <strong>Nom complet:</strong>
+                      <div className="text-muted">
+                        {candidateDetails.candidate.first_name && candidateDetails.candidate.last_name 
+                          ? `${candidateDetails.candidate.first_name} ${candidateDetails.candidate.last_name}`
+                          : candidateDetails.candidate.username}
+                      </div>
+                    </div>
+                    <div className="mb-2">
+                      <strong>Email:</strong>
+                      <div className="text-muted">{candidateDetails.candidate.email}</div>
+                    </div>
+                    <div className="mb-2">
+                      <strong>Téléphone:</strong>
+                      <div className="text-muted">{candidateDetails.candidate.phone || 'Non renseigné'}</div>
+                    </div>
+                    <div className="mb-2">
+                      <strong>Date de naissance:</strong>
+                      <div className="text-muted">{candidateDetails.candidate.date_of_birth || 'Non renseignée'}</div>
+                    </div>
+                  </Col>
+                  <Col md={6}>
+                    <div className="mb-2">
+                      <strong>Adresse:</strong>
+                      <div className="text-muted">
+                        {candidateDetails.candidate.address || 'Non renseignée'}
+                        {candidateDetails.candidate.city && (
+                          <div>{candidateDetails.candidate.city} {candidateDetails.candidate.postal_code}</div>
+                        )}
+                        {candidateDetails.candidate.country && (
+                          <div>{candidateDetails.candidate.country}</div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mb-2">
+                      <strong>Niveau d'éducation:</strong>
+                      <div className="text-muted">{candidateDetails.candidate.education_level || 'Non renseigné'}</div>
+                    </div>
+                    <div className="mb-2">
+                      <strong>Années d'expérience:</strong>
+                      <div className="text-muted">{candidateDetails.candidate.experience_years || 'Non renseigné'}</div>
+                    </div>
+                  </Col>
+                </Row>
+              </div>
+
+              {/* Profils professionnels */}
+              {(candidateDetails.candidate.linkedin_profile || candidateDetails.candidate.github_profile || candidateDetails.candidate.portfolio_url) && (
+                <div className="mb-4">
+                  <h6 className="fw-bold text-primary mb-3">
+                    <i className="bi bi-globe me-2"></i>
+                    Profils professionnels
+                  </h6>
+                  <div className="d-flex gap-3 flex-wrap">
+                    {candidateDetails.candidate.linkedin_profile && (
+                      <a href={candidateDetails.candidate.linkedin_profile} target="_blank" rel="noopener noreferrer" className="btn btn-outline-primary btn-sm">
+                        <i className="bi bi-linkedin me-1"></i>
+                        LinkedIn
+                      </a>
+                    )}
+                    {candidateDetails.candidate.github_profile && (
+                      <a href={candidateDetails.candidate.github_profile} target="_blank" rel="noopener noreferrer" className="btn btn-outline-dark btn-sm">
+                        <i className="bi bi-github me-1"></i>
+                        GitHub
+                      </a>
+                    )}
+                    {candidateDetails.candidate.portfolio_url && (
+                      <a href={candidateDetails.candidate.portfolio_url} target="_blank" rel="noopener noreferrer" className="btn btn-outline-info btn-sm">
+                        <i className="bi bi-briefcase me-1"></i>
+                        Portfolio
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Compétences */}
+              {candidateDetails.candidate.skills && (
+                <div className="mb-4">
+                  <h6 className="fw-bold text-primary mb-3">
+                    <i className="bi bi-tools me-2"></i>
+                    Compétences
+                  </h6>
+                  <div className="bg-light p-3 rounded">
+                    {candidateDetails.candidate.skills}
+                  </div>
+                </div>
+              )}
+
+              {/* Candidatures */}
+              <div className="mb-4">
+                <h6 className="fw-bold text-primary mb-3">
+                  <i className="bi bi-file-text me-2"></i>
+                  Candidatures ({candidateDetails.applications.length})
+                </h6>
+                {candidateDetails.applications.map((app, index) => (
+                  <Card key={app.id} className="mb-3">
+                    <Card.Body>
+                      <div className="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                          <h6 className="mb-1">{app.job_offer.title}</h6>
+                          <small className="text-muted">
+                            Candidature envoyée le {new Date(app.created_at).toLocaleDateString('fr-FR')}
+                          </small>
+                        </div>
+                        <Badge bg={app.status === 'accepted' ? 'success' : app.status === 'rejected' ? 'danger' : 'warning'}>
+                          {app.status_display}
+                        </Badge>
+                      </div>
+                      
+                      <div className="mb-3">
+                        <strong>Filière:</strong>
+                        <div className="text-muted">{app.filiere}</div>
+                      </div>
+                      
+                      <div className="mb-0">
+                        <strong>Lettre de motivation:</strong>
+                        <div className="bg-light p-3 rounded mt-2" style={{maxHeight: '150px', overflowY: 'auto'}}>
+                          {app.lettre_motivation}
+                        </div>
+                      </div>
+                    </Card.Body>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Bio */}
+              {candidateDetails.candidate.bio && (
+                <div className="mb-4">
+                  <h6 className="fw-bold text-primary mb-3">
+                    <i className="bi bi-chat-quote me-2"></i>
+                    À propos
+                  </h6>
+                  <div className="bg-light p-3 rounded">
+                    {candidateDetails.candidate.bio}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-4">
+              <i className="bi bi-exclamation-triangle text-warning" style={{fontSize: '2rem'}}></i>
+              <p className="mt-2 text-muted">Impossible de charger les détails du candidat</p>
+            </div>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowCandidateDetailsModal(false)}>
+            Fermer
+          </Button>
+        </Modal.Footer>
+      </Modal>
 
     </Container>
   );
