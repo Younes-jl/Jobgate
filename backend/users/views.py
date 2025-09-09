@@ -69,6 +69,22 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(request.user)
         return Response(serializer.data)
     
+    @action(detail=False, methods=['get', 'put'], url_path='profile')
+    def profile(self, request):
+        """
+        Endpoint pour récupérer et mettre à jour le profil complet de l'utilisateur connecté.
+        """
+        if request.method == 'GET':
+            serializer = self.get_serializer(request.user)
+            return Response(serializer.data)
+        
+        elif request.method == 'PUT':
+            serializer = self.get_serializer(request.user, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
     @action(detail=False, methods=['get'], permission_classes=[IsRecruteurPermission])
     def recruteurs(self, request):
         """

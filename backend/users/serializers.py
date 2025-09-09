@@ -27,11 +27,27 @@ class UserSerializer(serializers.ModelSerializer):
     """Serializer pour les opérations CRUD sur les utilisateurs."""
     password = serializers.CharField(write_only=True, required=False)
     role_display = serializers.CharField(source='get_role_display', read_only=True)
+    experience_years_display = serializers.CharField(source='get_experience_years_display', read_only=True)
+    education_level_display = serializers.CharField(source='get_education_level_display', read_only=True)
     
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 
-                  'password', 'role', 'role_display', 'is_active']
+        fields = [
+            'id', 'username', 'email', 'first_name', 'last_name', 
+            'password', 'role', 'role_display', 'is_active',
+            # Informations personnelles étendues
+            'phone', 'date_of_birth',
+            # Adresse
+            'address', 'city', 'postal_code', 'country',
+            # Profils professionnels
+            'linkedin_profile', 'github_profile', 'portfolio_url',
+            # Expérience professionnelle
+            'experience_years', 'experience_years_display',
+            'current_position', 'education_level', 'education_level_display',
+            'skills', 'bio',
+            # Métadonnées
+            'profile_updated_at'
+        ]
         extra_kwargs = {
             'password': {'write_only': True}
         }
