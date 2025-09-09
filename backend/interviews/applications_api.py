@@ -47,3 +47,20 @@ def job_applications(request):
     logger.error(f"Candidatures trouvées: {applications.count()}")
     serializer = JobApplicationSerializer(applications, many=True)
     return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def candidate_applications(request):
+    """
+    Vue API pour récupérer les candidatures d'un candidat spécifique.
+    Retourne les IDs des offres auxquelles le candidat a déjà postulé.
+    """
+    if request.user.role != 'CANDIDAT':
+        return Response(
+            {"detail": "Accès réservé aux candidats."},
+            status=status.HTTP_403_FORBIDDEN
+        )
+    
+    applications = JobApplication.objects.filter(candidate=request.user).values_list('job_offer_id', flat=True)
+    return Response({"applied_job_offers": list(applications)})

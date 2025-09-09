@@ -555,3 +555,6 @@ class AiEvaluation(models.Model):
             return "Passable"
         else:
             return "Insuffisant"
+
+# Import du modèle Notification
+from .notification_models import Notification

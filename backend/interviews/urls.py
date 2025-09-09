@@ -6,6 +6,7 @@ from .views import (
     CloudinaryVideoUploadView, AIQuestionGeneratorView, AIQuestionAnalysisView,
     EvaluateVideoView, AiEvaluationViewSet
 )
+from .notification_views import NotificationViewSet
 from .test_views import test_env_vars
 
 router = DefaultRouter()
@@ -16,6 +17,7 @@ router.register(r'applications', JobApplicationViewSet, basename='job-applicatio
 router.register(r'campaign-links', CampaignLinkViewSet, basename='campaign-links')
 router.register(r'answers', InterviewAnswerViewSet, basename='interview-answers')
 router.register(r'ai-evaluations', AiEvaluationViewSet, basename='ai-evaluations')
+router.register(r'notifications', NotificationViewSet, basename='notifications')
 
 urlpatterns = [
     path('', include(router.urls)),
