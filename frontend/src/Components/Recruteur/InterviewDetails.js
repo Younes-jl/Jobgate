@@ -39,6 +39,9 @@ const InterviewDetails = () => {
   const [showCandidateDetailsModal, setShowCandidateDetailsModal] = useState(false);
   const [candidateDetails, setCandidateDetails] = useState(null);
   const [loadingCandidateDetails, setLoadingCandidateDetails] = useState(false);
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+  const [confirmationAction, setConfirmationAction] = useState(null); // 'accept' ou 'reject'
+  const [processingAction, setProcessingAction] = useState(false);
   const videoRef = useRef(null);
 
   const fetchInterviewData = useCallback(async () => {
@@ -581,36 +584,38 @@ const InterviewDetails = () => {
     }
   };
 
-  // Fonction pour accepter/refuser le candidat
-  const handleDecision = async (decision) => {
+  // Fonction pour ouvrir la modal de confirmation
+  const handleDecision = (decision) => {
     if (!application) return;
     
-    const confirmMessage = {
-      'accept': 'Êtes-vous sûr de vouloir accepter ce candidat ?',
-      'reject': 'Êtes-vous sûr de vouloir refuser ce candidat ?',
-      'technical': 'Programmer un entretien technique pour ce candidat ?'
-    };
-    
-    if (!window.confirm(confirmMessage[decision])) return;
+    setConfirmationAction(decision);
+    setShowConfirmationModal(true);
+  };
+
+  // Fonction pour traiter la confirmation de la décision
+  const handleConfirmDecision = async () => {
+    if (!application || !confirmationAction) return;
     
     try {
+      setProcessingAction(true);
+      
       const statusUpdate = {
         'accept': 'accepted',
         'reject': 'rejected', 
         'technical': 'technical_interview'
       };
       
-      console.log(`Décision: ${decision} pour le candidat ${application.candidate.username}`);
+      console.log(`Décision: ${confirmationAction} pour le candidat ${application.candidate.username}`);
       
       // Appel API pour mettre à jour le statut
       await api.patch(`/interviews/applications/${applicationId}/`, { 
-        status: statusUpdate[decision] 
+        status: statusUpdate[confirmationAction] 
       });
       
       // Mettre à jour l'état local
       setApplication(prev => ({
         ...prev,
-        status: statusUpdate[decision]
+        status: statusUpdate[confirmationAction]
       }));
       
       const successMessage = {
@@ -619,15 +624,21 @@ const InterviewDetails = () => {
         'technical': 'Entretien technique programmé'
       };
       
-      alert(successMessage[decision]);
+      alert(successMessage[confirmationAction]);
+      
+      // Fermer la modal
+      setShowConfirmationModal(false);
+      setConfirmationAction(null);
       
       // Optionnel: rediriger vers la liste des candidatures
-      if (decision !== 'technical') {
+      if (confirmationAction !== 'technical') {
         setTimeout(() => navigate(-1), 1500);
       }
     } catch (error) {
       console.error('Erreur lors de la décision:', error);
       alert('Erreur lors de la mise à jour du statut');
+    } finally {
+      setProcessingAction(false);
     }
   };
 
@@ -1962,6 +1973,138 @@ const InterviewDetails = () => {
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowCandidateDetailsModal(false)}>
             Fermer
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Modal de confirmation pour accepter/refuser un candidat */}
+      <Modal
+        show={showConfirmationModal}
+        onHide={() => {
+          if (!processingAction) {
+            setShowConfirmationModal(false);
+            setConfirmationAction(null);
+          }
+        }}
+        size="md"
+        centered
+        backdrop={processingAction ? "static" : true}
+        keyboard={!processingAction}
+      >
+        <Modal.Header closeButton={!processingAction}>
+          <Modal.Title>
+            <i className={`bi ${confirmationAction === 'accept' ? 'bi-check-circle text-success' : 'bi-x-circle text-danger'} me-2`}></i>
+            {confirmationAction === 'accept' ? 'Accepter le candidat' : 'Refuser le candidat'}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {application && (
+            <div>
+              {/* Informations du candidat */}
+              <div className="candidate-confirmation-info bg-light p-3 rounded mb-4">
+                <div className="d-flex align-items-center mb-3">
+                  <i className="bi bi-person-circle me-3" style={{ fontSize: '2.5rem', color: '#6c757d' }}></i>
+                  <div>
+                    <h6 className="mb-1 fw-bold">
+                      {application.candidate.first_name && application.candidate.last_name 
+                        ? `${application.candidate.first_name} ${application.candidate.last_name}`
+                        : application.candidate.username}
+                    </h6>
+                    <small className="text-muted">{application.candidate.email}</small>
+                  </div>
+                </div>
+                
+                <div className="row">
+                  <div className="col-md-6">
+                    <div className="mb-2">
+                      <strong>Offre d'emploi:</strong>
+                      <div className="text-muted">{application.job_offer?.title}</div>
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <div className="mb-2">
+                      <strong>Filière:</strong>
+                      <div className="text-muted">{application.filiere || 'Non spécifiée'}</div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="mb-2">
+                  <strong>Date de candidature:</strong>
+                  <div className="text-muted">
+                    {new Date(application.created_at).toLocaleDateString('fr-FR', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Message de confirmation */}
+              <div className={`alert ${confirmationAction === 'accept' ? 'alert-success' : 'alert-danger'} d-flex align-items-center`}>
+                <i className={`bi ${confirmationAction === 'accept' ? 'bi-info-circle' : 'bi-exclamation-triangle'} me-2`}></i>
+                <div>
+                  {confirmationAction === 'accept' ? (
+                    <div>
+                      <strong>Êtes-vous sûr de vouloir accepter ce candidat ?</strong>
+                      <div className="mt-2 small">
+                        • Le candidat recevra une notification d'acceptation par email<br/>
+                        • Son statut passera à "Accepté" dans le système<br/>
+                        • Cette action est définitive
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <strong>Êtes-vous sûr de vouloir refuser ce candidat ?</strong>
+                      <div className="mt-2 small">
+                        • Le candidat recevra une notification de refus par email<br/>
+                        • Son statut passera à "Refusé" dans le système<br/>
+                        • Cette action est définitive
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {processingAction && (
+                <div className="text-center py-3">
+                  <Spinner animation="border" size="sm" className="me-2" />
+                  <span>Traitement en cours...</span>
+                </div>
+              )}
+            </div>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button 
+            variant="secondary" 
+            onClick={() => {
+              setShowConfirmationModal(false);
+              setConfirmationAction(null);
+            }}
+            disabled={processingAction}
+          >
+            Annuler
+          </Button>
+          <Button 
+            variant={confirmationAction === 'accept' ? 'success' : 'danger'}
+            onClick={handleConfirmDecision}
+            disabled={processingAction}
+          >
+            {processingAction ? (
+              <>
+                <Spinner animation="border" size="sm" className="me-2" />
+                Traitement...
+              </>
+            ) : (
+              <>
+                <i className={`bi ${confirmationAction === 'accept' ? 'bi-check-circle' : 'bi-x-circle'} me-2`}></i>
+                {confirmationAction === 'accept' ? 'Confirmer l\'acceptation' : 'Confirmer le refus'}
+              </>
+            )}
           </Button>
         </Modal.Footer>
       </Modal>
