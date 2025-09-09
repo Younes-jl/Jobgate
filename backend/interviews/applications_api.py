@@ -64,3 +64,51 @@ def candidate_applications(request):
     
     applications = JobApplication.objects.filter(candidate=request.user).values_list('job_offer_id', flat=True)
     return Response({"applied_job_offers": list(applications)})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def candidate_details(request, candidate_id):
+    """
+    Vue API pour récupérer les détails complets d'un candidat avec sa candidature.
+    Accessible uniquement aux recruteurs.
+    """
+    if request.user.role != 'RECRUTEUR':
+        return Response(
+            {"detail": "Accès réservé aux recruteurs."},
+            status=status.HTTP_403_FORBIDDEN
+        )
+    
+    # Récupérer le candidat
+    try:
+        from users.models import CustomUser
+        candidate = CustomUser.objects.get(id=candidate_id, role='CANDIDAT')
+    except CustomUser.DoesNotExist:
+        return Response(
+            {"detail": "Candidat non trouvé."},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    # Récupérer toutes les candidatures de ce candidat pour les offres du recruteur connecté
+    applications = JobApplication.objects.filter(
+        candidate=candidate,
+        job_offer__recruiter=request.user
+    ).order_by('-created_at')
+    
+    if not applications.exists():
+        return Response(
+            {"detail": "Aucune candidature trouvée pour ce candidat sur vos offres."},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    # Sérialiser les candidatures avec tous les détails
+    serializer = JobApplicationSerializer(applications, many=True)
+    
+    # Ajouter les informations personnelles du candidat
+    from users.serializers import UserSerializer
+    candidate_serializer = UserSerializer(candidate)
+    
+    return Response({
+        "candidate": candidate_serializer.data,
+        "applications": serializer.data
+    })

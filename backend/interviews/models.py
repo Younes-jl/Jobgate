@@ -393,7 +393,7 @@ class CampaignLink(models.Model):
 class JobApplication(models.Model):
     """
     Modèle représentant une candidature à une offre d'emploi.
-    Candidature simplifiée avec juste le lien entre candidat et offre.
+    Candidature complète avec lettre de motivation et filière.
     """
     STATUS_CHOICES = [
         ('pending', 'En attente'),
@@ -405,6 +405,11 @@ class JobApplication(models.Model):
     job_offer = models.ForeignKey(JobOffer, on_delete=models.CASCADE, related_name="applications", verbose_name="Offre d'emploi")
     candidate = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="applications", verbose_name="Candidat")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name="Statut")
+    
+    # Nouveaux champs pour la candidature
+    lettre_motivation = models.TextField(verbose_name="Lettre de motivation", help_text="Lettre de motivation du candidat")
+    filiere = models.CharField(max_length=255, verbose_name="Filière", help_text="Filière d'études ou domaine de spécialisation")
+    
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Date de candidature")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Dernière mise à jour")
     

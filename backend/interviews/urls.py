@@ -6,6 +6,7 @@ from .views import (
     CloudinaryVideoUploadView, AIQuestionGeneratorView, AIQuestionAnalysisView,
     EvaluateVideoView, AiEvaluationViewSet
 )
+from .applications_api import candidate_details
 from .notification_views import NotificationViewSet
 from .test_views import test_env_vars
 
@@ -42,4 +43,7 @@ urlpatterns = [
     
     # ========== URLs IA pour Évaluation Vidéo ==========
     path('ai/evaluate-video/', EvaluateVideoView.as_view(), name='ai-evaluate-video'),
+    
+    # ========== URL pour les détails candidat ==========
+    path('candidates/<int:candidate_id>/details/', candidate_details, name='candidate-details'),
 ]

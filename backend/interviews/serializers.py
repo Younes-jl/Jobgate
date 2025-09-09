@@ -87,7 +87,7 @@ class CampaignLinkSerializer(serializers.ModelSerializer):
 
 
 class JobApplicationSerializer(serializers.ModelSerializer):
-    """Serializer pour les candidatures simplifiées"""
+    """Serializer pour les candidatures complètes"""
     candidate_name = serializers.SerializerMethodField()
     job_title = serializers.SerializerMethodField()
     status_display = serializers.SerializerMethodField()
@@ -96,7 +96,7 @@ class JobApplicationSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = JobApplication
-        fields = ['id', 'job_offer', 'candidate', 'status', 
+        fields = ['id', 'job_offer', 'candidate', 'status', 'lettre_motivation', 'filiere',
                   'created_at', 'updated_at', 'candidate_name', 'job_title', 'status_display']
         read_only_fields = ['id', 'created_at', 'updated_at', 'candidate_name', 'job_title', 'status_display']
     
