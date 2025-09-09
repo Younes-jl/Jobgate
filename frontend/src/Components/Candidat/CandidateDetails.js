@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Badge, Button } from 'react-bootstrap';
 import { useAuth } from '../auth/useAuth';
+import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import './CandidateStyles.css';
 
 const CandidateDetails = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [applications, setApplications] = useState([]);
+  const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [error, setError] = useState(null);
   const [stats, setStats] = useState({
     total: 0,
@@ -15,6 +19,21 @@ const CandidateDetails = () => {
     accepted: 0,
     rejected: 0
   });
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Fonction pour récupérer le profil utilisateur complet
+  const fetchUserProfile = async () => {
+    try {
+      setProfileLoading(true);
+      const response = await api.get('/users/profile/');
+      setUserProfile(response.data);
+    } catch (error) {
+      console.error('Erreur lors du chargement du profil:', error);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
 
   // Fonction pour récupérer les candidatures de l'utilisateur
   const fetchUserApplications = async () => {
@@ -42,9 +61,25 @@ const CandidateDetails = () => {
     }
   };
 
+  // Fonction pour récupérer les notifications récentes
+  const fetchRecentNotifications = async () => {
+    try {
+      const response = await api.get('/interviews/notifications/recent/');
+      setNotifications(response.data);
+      
+      // Compter les notifications non lues
+      const unreadResponse = await api.get('/interviews/notifications/unread_count/');
+      setUnreadCount(unreadResponse.data.unread_count);
+    } catch (error) {
+      console.error('Erreur lors du chargement des notifications:', error);
+    }
+  };
+
   useEffect(() => {
     if (user) {
+      fetchUserProfile();
       fetchUserApplications();
+      fetchRecentNotifications();
     }
   }, [user]);
 
@@ -64,6 +99,45 @@ const CandidateDetails = () => {
         return { variant: 'warning', text: 'En cours' };
       default:
         return { variant: 'secondary', text: status || 'Inconnu' };
+    }
+  };
+
+  // Fonctions pour les notifications
+  const getNotificationIcon = (type) => {
+    switch (type) {
+      case 'INTERVIEW_INVITATION':
+        return 'bi-camera-video';
+      case 'APPLICATION_STATUS':
+        return 'bi-briefcase';
+      case 'INTERVIEW_REMINDER':
+        return 'bi-alarm';
+      case 'JOB_MATCH':
+        return 'bi-star';
+      case 'PROFILE_UPDATE':
+        return 'bi-person-gear';
+      case 'SYSTEM':
+        return 'bi-info-circle';
+      default:
+        return 'bi-bell';
+    }
+  };
+
+  const getNotificationColor = (type) => {
+    switch (type) {
+      case 'INTERVIEW_INVITATION':
+        return 'success';
+      case 'APPLICATION_STATUS':
+        return 'info';
+      case 'INTERVIEW_REMINDER':
+        return 'warning';
+      case 'JOB_MATCH':
+        return 'primary';
+      case 'PROFILE_UPDATE':
+        return 'secondary';
+      case 'SYSTEM':
+        return 'dark';
+      default:
+        return 'primary';
     }
   };
 
@@ -95,34 +169,60 @@ const CandidateDetails = () => {
               </div>
             </Card.Header>
             <Card.Body>
-              <div className="text-center mb-3">
-                <div className="user-avatar-large bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center">
-                  <i className="bi bi-person" style={{ fontSize: '2rem' }}></i>
+              {profileLoading ? (
+                <div className="text-center py-3">
+                  <div className="spinner-border spinner-border-sm text-primary" role="status">
+                    <span className="visually-hidden">Chargement...</span>
+                  </div>
                 </div>
-                <h6 className="mt-2 mb-0">{user?.first_name} {user?.last_name}</h6>
-                <small className="text-muted">Développeur Frontend React</small>
-              </div>
-              
-              <div className="mb-2">
-                <i className="bi bi-envelope me-2 text-muted"></i>
-                <small>{user?.email}</small>
-              </div>
-              <div className="mb-2">
-                <i className="bi bi-telephone me-2 text-muted"></i>
-                <small>+33 6 12 34 56 78</small>
-              </div>
-              <div className="mb-2">
-                <i className="bi bi-geo-alt me-2 text-muted"></i>
-                <small>Casablanca, Maroc</small>
-              </div>
-              <div className="mb-3">
-                <i className="bi bi-calendar me-2 text-muted"></i>
-                <small>3 ans d'expérience</small>
-              </div>
-              
-              <Button variant="outline-primary" size="sm" className="w-100">
-                Mettre à jour le profil
-              </Button>
+              ) : (
+                <>
+                  <div className="text-center mb-3">
+                    <div className="user-avatar-large bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center">
+                      <i className="bi bi-person" style={{ fontSize: '2rem' }}></i>
+                    </div>
+                    <h6 className="mt-2 mb-0">{userProfile?.first_name} {userProfile?.last_name}</h6>
+                    <small className="text-muted">
+                      {userProfile?.current_position || 'Poste non renseigné'}
+                    </small>
+                  </div>
+                  
+                  <div className="mb-2">
+                    <i className="bi bi-envelope me-2 text-muted"></i>
+                    <small>{userProfile?.email}</small>
+                  </div>
+                  
+                  {userProfile?.phone && (
+                    <div className="mb-2">
+                      <i className="bi bi-telephone me-2 text-muted"></i>
+                      <small>{userProfile.phone}</small>
+                    </div>
+                  )}
+                  
+                  {userProfile?.city && (
+                    <div className="mb-2">
+                      <i className="bi bi-geo-alt me-2 text-muted"></i>
+                      <small>{userProfile.city}{userProfile.country && userProfile.country !== 'Maroc' ? `, ${userProfile.country}` : ', Maroc'}</small>
+                    </div>
+                  )}
+                  
+                  {userProfile?.experience_years && (
+                    <div className="mb-3">
+                      <i className="bi bi-calendar me-2 text-muted"></i>
+                      <small>{userProfile.experience_years_display || userProfile.experience_years} d'expérience</small>
+                    </div>
+                  )}
+                  
+                  <Button 
+                    variant="outline-primary" 
+                    size="sm" 
+                    className="w-100"
+                    onClick={() => navigate('/candidate/infos-personnelles')}
+                  >
+                    Mettre à jour vos informations
+                  </Button>
+                </>
+              )}
             </Card.Body>
           </Card>
 
@@ -133,7 +233,9 @@ const CandidateDetails = () => {
                 <h6 className="mb-0">
                   <i className="bi bi-bell me-2"></i>
                   Notifications
-                  <Badge bg="danger" className="ms-2">3</Badge>
+                  {unreadCount > 0 && (
+                    <Badge bg="danger" className="ms-2">{unreadCount}</Badge>
+                  )}
                 </h6>
                 <Button variant="link" size="sm" className="text-decoration-none">
                   <i className="bi bi-gear"></i>
@@ -141,39 +243,52 @@ const CandidateDetails = () => {
               </div>
             </Card.Header>
             <Card.Body>
-              <div className="notification-item border-start border-success border-3 ps-3 mb-3">
-                <div className="d-flex justify-content-between">
-                  <strong className="text-success">Entretien programmé</strong>
-                  <small className="text-muted">23/01/2024</small>
+              {notifications.length === 0 ? (
+                <div className="text-center py-3">
+                  <i className="bi bi-bell-slash" style={{ fontSize: '2rem', color: '#6c757d' }}></i>
+                  <p className="mt-2 text-muted mb-0">Aucune notification récente</p>
                 </div>
-                <small className="text-muted">
-                  Votre entretien pour le poste de Designer UI/UX chez TechCorp est prévu pour le 25 janvier 2024.
-                </small>
-              </div>
-              
-              <div className="notification-item border-start border-info border-3 ps-3 mb-3">
-                <div className="d-flex justify-content-between">
-                  <strong className="text-info">Candidature acceptée</strong>
-                  <small className="text-muted">18/01/2024</small>
-                </div>
-                <small className="text-muted">
-                  Félicitations! Votre candidature pour Développeur Full Stack chez StartupTech a été acceptée.
-                </small>
-              </div>
-              
-              <div className="notification-item border-start border-warning border-3 ps-3">
-                <div className="d-flex justify-content-between">
-                  <strong className="text-warning">Nouvelle opportunité</strong>
-                  <small className="text-muted">16/01/2024</small>
-                </div>
-                <small className="text-muted">
-                  Une nouvelle offre correspond à votre profil: Développeur React Senior.
-                </small>
-              </div>
+              ) : (
+                <>
+                  {notifications.slice(0, 3).map((notification) => (
+                    <div 
+                      key={notification.id} 
+                      className={`notification-item border-start border-${getNotificationColor(notification.notification_type)} border-3 ps-3 mb-3`}
+                    >
+                      <div className="d-flex justify-content-between align-items-start">
+                        <div className="flex-grow-1">
+                          <div className="d-flex align-items-center mb-1">
+                            <i className={`bi ${getNotificationIcon(notification.notification_type)} me-2 text-${getNotificationColor(notification.notification_type)}`}></i>
+                            <strong className={`text-${getNotificationColor(notification.notification_type)}`}>
+                              {notification.title}
+                            </strong>
+                            {!notification.is_read && (
+                              <span className="text-primary ms-2">•</span>
+                            )}
+                          </div>
+                          <small className="text-muted">
+                            {notification.message.length > 80 
+                              ? `${notification.message.substring(0, 80)}...` 
+                              : notification.message}
+                          </small>
+                        </div>
+                        <small className="text-muted ms-2">
+                          {notification.time_ago || new Date(notification.created_at).toLocaleDateString('fr-FR')}
+                        </small>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
               
               <div className="text-center mt-3">
-                <Button variant="link" size="sm" className="text-decoration-none">
-                  Voir toutes les notifications
+                <Button 
+                  variant="link" 
+                  size="sm" 
+                  className="text-decoration-none"
+                  onClick={() => navigate('/candidate/notifications')}
+                >
+                  Afficher toutes les notifications
                 </Button>
               </div>
             </Card.Body>

@@ -5,7 +5,7 @@
  * de l'état d'authentification et du rôle de l'utilisateur.
  */
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
 // Importer les composants
 import LoginPage from './Components/auth/LoginPage';
@@ -15,6 +15,8 @@ import RecruiterJobOfferDetails from './Components/Recruteur/JobOfferDetails';
 import InterviewDetails from './Components/Recruteur/InterviewDetails';
 import CandidateDashboard from './Components/Candidat/CandidateDashboard';
 import CandidateDetails from './Components/Candidat/CandidateDetails';
+import CandidateNotifications from './Components/Candidat/CandidateNotifications';
+import InfosPersonnels from './Components/Candidat/InfosPersonnels';
 import JobOfferDetails from './Components/Candidat/JobOfferDetails';
 import CandidateNavbar from './Components/Candidat/CandidateNavbar';
 import RecruiterNavbar from './Components/Recruteur/RecruiterNavbar';
@@ -173,6 +175,20 @@ function AppContent() {
                         <Route path="/job-offers/:id" element={
                             user && user.role === 'CANDIDAT' ? 
                             <JobOfferDetails /> : 
+                            <Navigate to="/" replace />
+                        } />
+                        
+                        {/* Informations personnelles candidat (protégé) */}
+                        <Route path="/candidate/infos-personnelles" element={
+                            user && user.role === 'CANDIDAT' ? 
+                            <InfosPersonnels /> : 
+                            <Navigate to="/" replace />
+                        } />
+                        
+                        {/* Notifications candidat (protégé) */}
+                        <Route path="/candidate/notifications" element={
+                            user && user.role === 'CANDIDAT' ? 
+                            <CandidateNotifications /> : 
                             <Navigate to="/" replace />
                         } />
                         

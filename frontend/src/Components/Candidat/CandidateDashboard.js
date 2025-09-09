@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { fetchAllJobOffers } from './jobOffersApi';
 import { Link } from 'react-router-dom';
-import { Card, Container, Row, Col, Badge } from 'react-bootstrap';
+import { Card, Container, Row, Col, Badge, Button } from 'react-bootstrap';
 import { useAuth } from '../auth/useAuth';
+import api from '../../services/api';
 import './CandidateStyles.css';
 
 /**
@@ -12,15 +13,32 @@ const CandidateDashboard = () => {
   const [jobOffers, setJobOffers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [userApplications, setUserApplications] = useState([]);
   const { user } = useAuth();
 
+  // Fonction pour récupérer les candidatures de l'utilisateur
+  const fetchUserApplications = async () => {
+    try {
+      const response = await api.get('/interviews/applications/my_applications/');
+      setUserApplications(response.data);
+    } catch (error) {
+      console.error('Erreur lors du chargement des candidatures:', error);
+    }
+  };
+
   useEffect(() => {
-    // Récupérer les offres d'emploi au chargement du composant
-    const loadJobOffers = async () => {
+    // Récupérer les offres d'emploi et les candidatures au chargement du composant
+    const loadData = async () => {
       try {
         setLoading(true);
         const offers = await fetchAllJobOffers();
         setJobOffers(offers);
+        
+        // Récupérer les candidatures de l'utilisateur
+        if (user) {
+          await fetchUserApplications();
+        }
+        
         setError(null);
       } catch (err) {
         setError('Erreur lors du chargement des offres d\'emploi. Veuillez réessayer plus tard.');
@@ -30,8 +48,13 @@ const CandidateDashboard = () => {
       }
     };
 
-    loadJobOffers();
-  }, []);
+    loadData();
+  }, [user]);
+
+  // Fonction pour vérifier si l'utilisateur a déjà postulé à une offre
+  const hasAppliedToOffer = (offerId) => {
+    return userApplications.some(application => application.job_offer?.id === offerId);
+  };
 
   if (loading) {
     return (
@@ -109,11 +132,27 @@ const CandidateDashboard = () => {
                                   {offer.contract_type}
                                 </Badge>
                               )}
-                              <Badge bg="success" className="new-badge">Nouveau</Badge>
+                              {hasAppliedToOffer(offer.id) ? (
+                                <Badge bg="success" className="me-2">Déjà postulé</Badge>
+                              ) : (
+                                <Badge bg="success" className="new-badge">Nouveau</Badge>
+                              )}
                             </div>
-                            <Link to={`/job-offers/${offer.id}`} className="btn btn-outline-primary btn-sm">
-                              Voir détails
-                            </Link>
+                            {hasAppliedToOffer(offer.id) ? (
+                              <Button 
+                                variant="secondary" 
+                                size="sm" 
+                                disabled
+                                title="Vous avez déjà postulé à cette offre"
+                              >
+                                <i className="bi bi-check-circle me-1"></i>
+                                Déjà postulé
+                              </Button>
+                            ) : (
+                              <Link to={`/job-offers/${offer.id}`} className="btn btn-outline-primary btn-sm">
+                                Voir détails
+                              </Link>
+                            )}
                           </div>
                         </Card.Body>
                       </Card>
