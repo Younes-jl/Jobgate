@@ -313,29 +313,59 @@ const RecruiterDashboard = () => {
               </Col>
             </Row>
   
-            {/* Contenu principal */}
+            {/* Actions rapides */}
             <Row>
-              <Col md={12}>
-                <Card className="dashboard-card mb-4">
-                  <Card.Header className="bg-white">
-                    <div className="d-flex justify-content-between align-items-center">
-                      <div className="d-flex align-items-center">
-                        <i className="bi bi-clock-history me-2 text-primary"></i>
-                        <h5 className="mb-0 fw-bold">Vos Offres Récentes</h5>
+              <Col md={6}>
+                <Card className="dashboard-card mb-4 h-100">
+                  <Card.Body className="d-flex flex-column justify-content-center text-center p-4">
+                    <div className="mb-3">
+                      <div className="mx-auto mb-3 p-3 bg-success rounded-circle text-white shadow-sm" style={{ width: '80px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <i className="bi bi-briefcase" style={{ fontSize: '2rem' }}></i>
                       </div>
-                      <Button 
-                        variant="primary" 
-                        size="sm" 
-                        onClick={() => setActiveSection('offers')}
-                        className="rounded-pill px-3"
-                      >
-                        <i className="bi bi-arrow-right me-1"></i>
-                        Voir toutes
-                      </Button>
+                      <h4 className="fw-bold text-success mb-2">Mes Offres d'Emploi</h4>
+                      <p className="text-muted mb-3">Gérez et consultez toutes vos offres d'emploi actives et archivées</p>
+                      <div className="mb-3">
+                        <Badge bg="success" pill className="fs-6 px-3 py-2">
+                          {dashboardData.totalOffers} offre{dashboardData.totalOffers > 1 ? 's' : ''} active{dashboardData.totalOffers > 1 ? 's' : ''}
+                        </Badge>
+                      </div>
                     </div>
-                  </Card.Header>
-                  <Card.Body>
-                    <JobOfferList />
+                    <Button 
+                      variant="success" 
+                      size="lg" 
+                      onClick={() => setActiveSection('offers')}
+                      className="rounded-pill px-4 py-2 fw-bold"
+                    >
+                      <i className="bi bi-briefcase me-2"></i>
+                      Accéder aux Offres
+                    </Button>
+                  </Card.Body>
+                </Card>
+              </Col>
+              <Col md={6}>
+                <Card className="dashboard-card mb-4 h-100">
+                  <Card.Body className="d-flex flex-column justify-content-center text-center p-4">
+                    <div className="mb-3">
+                      <div className="mx-auto mb-3 p-3 bg-warning rounded-circle text-dark shadow-sm" style={{ width: '80px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <i className="bi bi-people" style={{ fontSize: '2rem' }}></i>
+                      </div>
+                      <h4 className="fw-bold text-warning mb-2">Candidatures Reçues</h4>
+                      <p className="text-muted mb-3">Consultez et gérez toutes les candidatures à vos offres d'emploi</p>
+                      <div className="mb-3">
+                        <Badge bg="warning" pill className="fs-6 px-3 py-2 text-dark">
+                          {dashboardData.totalApplications} candidature{dashboardData.totalApplications > 1 ? 's' : ''} reçue{dashboardData.totalApplications > 1 ? 's' : ''}
+                        </Badge>
+                      </div>
+                    </div>
+                    <Button 
+                      variant="warning" 
+                      size="lg" 
+                      onClick={() => setActiveSection('applications')}
+                      className="rounded-pill px-4 py-2 fw-bold text-dark"
+                    >
+                      <i className="bi bi-people me-2"></i>
+                      Accéder aux Candidatures
+                    </Button>
                   </Card.Body>
                 </Card>
               </Col>
