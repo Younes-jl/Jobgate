@@ -24,7 +24,7 @@ class CustomUser(AbstractUser):
     date_of_birth = models.DateField(blank=True, null=True, verbose_name="Date de naissance")
     
     # Adresse
-   
+    address = models.TextField(blank=True, null=True, verbose_name="Adresse")
     city = models.CharField(max_length=100, blank=True, null=True, verbose_name="Ville")
     postal_code = models.CharField(max_length=10, blank=True, null=True, verbose_name="Code postal")
     country = models.CharField(max_length=100, default="Maroc", verbose_name="Pays")

@@ -69,8 +69,8 @@ export const useAuth = () => {
         window.addEventListener('auth-change', handleStorageChange);
         document.addEventListener('visibilitychange', handleVisibilityChange);
         
-        // Vérifier périodiquement le token toutes les 15 secondes
-        const interval = setInterval(checkToken, 15000);
+        // Vérifier périodiquement le token toutes les 5 minutes (300000ms)
+        const interval = setInterval(checkToken, 300000);
         
         // Nettoyer les écouteurs lors du démontage
         return () => {

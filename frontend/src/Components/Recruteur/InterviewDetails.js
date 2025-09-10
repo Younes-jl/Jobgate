@@ -908,7 +908,7 @@ const InterviewDetails = () => {
 
   return (
     <div className="position-relative">
-      <JobGateLogo size="medium" className="jobgate-logo-header" />
+    
       <Container fluid className="py-4" style={{ backgroundColor: '#f8f9fa', minHeight: '100vh' }}>
         {/* Header */}
         <div className="mb-4">
@@ -2421,7 +2421,7 @@ const InterviewDetails = () => {
         <Modal.Header closeButton>
           <Modal.Title>
             <i className="bi bi-person-lines-fill me-2"></i>
-            Détails complets du candidat
+            Détails du candidat
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
@@ -2488,98 +2488,47 @@ const InterviewDetails = () => {
                 </Row>
               </div>
 
-              {/* Profils professionnels */}
-              {(candidateDetails.candidate.linkedin_profile || candidateDetails.candidate.github_profile || candidateDetails.candidate.portfolio_url) && (
-                <div className="mb-4">
-                  <h6 className="fw-bold text-primary mb-3">
-                    <i className="bi bi-globe me-2"></i>
-                    Profils professionnels
-                  </h6>
-                  <div className="d-flex gap-3 flex-wrap">
-                    {candidateDetails.candidate.linkedin_profile && (
-                      <a href={candidateDetails.candidate.linkedin_profile} target="_blank" rel="noopener noreferrer" className="btn btn-outline-primary btn-sm">
-                        <i className="bi bi-linkedin me-1"></i>
-                        LinkedIn
-                      </a>
-                    )}
-                    {candidateDetails.candidate.github_profile && (
-                      <a href={candidateDetails.candidate.github_profile} target="_blank" rel="noopener noreferrer" className="btn btn-outline-dark btn-sm">
-                        <i className="bi bi-github me-1"></i>
-                        GitHub
-                      </a>
-                    )}
-                    {candidateDetails.candidate.portfolio_url && (
-                      <a href={candidateDetails.candidate.portfolio_url} target="_blank" rel="noopener noreferrer" className="btn btn-outline-info btn-sm">
-                        <i className="bi bi-briefcase me-1"></i>
-                        Portfolio
-                      </a>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Compétences */}
-              {candidateDetails.candidate.skills && (
-                <div className="mb-4">
-                  <h6 className="fw-bold text-primary mb-3">
-                    <i className="bi bi-tools me-2"></i>
-                    Compétences
-                  </h6>
-                  <div className="bg-light p-3 rounded">
-                    {candidateDetails.candidate.skills}
-                  </div>
-                </div>
-              )}
-
-              {/* Candidatures */}
-              <div className="mb-4">
-                <h6 className="fw-bold text-primary mb-3">
-                  <i className="bi bi-file-text me-2"></i>
-                  Candidatures ({candidateDetails.applications.length})
-                </h6>
-                {candidateDetails.applications.map((app, index) => (
-                  <Card key={app.id} className="mb-3">
-                    <Card.Body>
-                      <div className="d-flex justify-content-between align-items-start mb-3">
-                        <div>
-                          <h6 className="mb-1">{app.job_offer.title}</h6>
-                          <small className="text-muted">
-                            Candidature envoyée le {new Date(app.created_at).toLocaleDateString('fr-FR')}
-                          </small>
+              {/* Lettre de motivation pour cette candidature */}
+              {candidateDetails.applications.map((app, index) => {
+                // Afficher seulement la candidature pour l'offre actuelle
+                if (app.job_offer.id === application?.job_offer?.id) {
+                  return (
+                    <div key={app.id} className="mb-4">
+                      <h6 className="fw-bold text-primary mb-3">
+                        <i className="bi bi-file-text me-2"></i>
+                        Lettre de motivation
+                      </h6>
+                      <div className="mb-3">
+                        <div className="d-flex justify-content-between align-items-center mb-2">
+                          <div>
+                            <strong>Candidature pour: {app.job_offer.title}</strong>
+                            <div className="text-muted small">
+                              Candidature envoyée le {new Date(app.created_at).toLocaleDateString('fr-FR')}
+                            </div>
+                          </div>
+                          <Badge bg={app.status === 'accepted' ? 'success' : app.status === 'rejected' ? 'danger' : 'warning'}>
+                            {app.status_display}
+                          </Badge>
                         </div>
-                        <Badge bg={app.status === 'accepted' ? 'success' : app.status === 'rejected' ? 'danger' : 'warning'}>
-                          {app.status_display}
-                        </Badge>
                       </div>
                       
-                      <div className="mb-3">
-                        <strong>Filière:</strong>
-                        <div className="text-muted">{app.filiere}</div>
-                      </div>
+                      {app.filiere && (
+                        <div className="mb-3">
+                          <strong>Filière:</strong>
+                          <div className="text-muted">{app.filiere}</div>
+                        </div>
+                      )}
                       
                       <div className="mb-0">
-                        <strong>Lettre de motivation:</strong>
-                        <div className="bg-light p-3 rounded mt-2" style={{maxHeight: '150px', overflowY: 'auto'}}>
-                          {app.lettre_motivation}
+                        <div className="bg-white border p-4 rounded mt-2" style={{minHeight: '200px', lineHeight: '1.6'}}>
+                          {app.lettre_motivation || 'Aucune lettre de motivation fournie.'}
                         </div>
                       </div>
-                    </Card.Body>
-                  </Card>
-                ))}
-              </div>
-
-              {/* Bio */}
-              {candidateDetails.candidate.bio && (
-                <div className="mb-4">
-                  <h6 className="fw-bold text-primary mb-3">
-                    <i className="bi bi-chat-quote me-2"></i>
-                    À propos
-                  </h6>
-                  <div className="bg-light p-3 rounded">
-                    {candidateDetails.candidate.bio}
-                  </div>
-                </div>
-              )}
+                    </div>
+                  );
+                }
+                return null;
+              })}
             </div>
           ) : (
             <div className="text-center py-4">

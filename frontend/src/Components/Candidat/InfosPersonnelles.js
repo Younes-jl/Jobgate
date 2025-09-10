@@ -26,11 +26,12 @@ const InfosPersonnelles = () => {
     postal_code: '',
     country: 'Maroc',
     current_position: '',
-    years_of_experience: 0,
+    experience_years: '',
     skills: '',
     education_level: '',
-    preferred_location: '',
-    salary_expectation: ''
+    linkedin_profile: '',
+    github_profile: '',
+    bio: ''
   });
 
   // Charger les données existantes
@@ -39,28 +40,29 @@ const InfosPersonnelles = () => {
       try {
         setLoading(true);
         
-        // Charger les informations de base de l'utilisateur
+        // Charger toutes les informations utilisateur depuis CustomUser
         if (user) {
-          setFormData(prev => ({
-            ...prev,
-            first_name: user.first_name || '',
-            last_name: user.last_name || '',
-            email: user.email || ''
-          }));
-        }
-
-        // Charger le profil étendu
-        try {
-          const profileResponse = await api.get('/users/profile/me/');
-          if (profileResponse.data) {
-            setFormData(prev => ({
-              ...prev,
-              ...profileResponse.data
-            }));
+          const userResponse = await api.get(`/users/users/${user.id}/`);
+          if (userResponse.data) {
+            setFormData({
+              first_name: userResponse.data.first_name || '',
+              last_name: userResponse.data.last_name || '',
+              email: userResponse.data.email || '',
+              phone: userResponse.data.phone || '',
+              date_of_birth: userResponse.data.date_of_birth || '',
+              address: userResponse.data.address || '',
+              city: userResponse.data.city || '',
+              postal_code: userResponse.data.postal_code || '',
+              country: userResponse.data.country || 'Maroc',
+              current_position: userResponse.data.current_position || '',
+              experience_years: userResponse.data.experience_years || '',
+              skills: userResponse.data.skills || '',
+              education_level: userResponse.data.education_level || '',
+              linkedin_profile: userResponse.data.linkedin_profile || '',
+              github_profile: userResponse.data.github_profile || '',
+              bio: userResponse.data.bio || ''
+            });
           }
-        } catch (profileError) {
-          // Le profil n'existe pas encore, ce n'est pas grave
-          console.log('Aucun profil existant trouvé, création d\'un nouveau profil');
         }
         
       } catch (error) {
@@ -89,14 +91,11 @@ const InfosPersonnelles = () => {
     setSuccess(false);
 
     try {
-      // Séparer les données utilisateur et profil
+      // Sauvegarder toutes les données directement dans CustomUser
       const userData = {
         first_name: formData.first_name,
         last_name: formData.last_name,
-        email: formData.email
-      };
-
-      const profileData = {
+        email: formData.email,
         phone: formData.phone,
         date_of_birth: formData.date_of_birth || null,
         address: formData.address,
@@ -104,18 +103,16 @@ const InfosPersonnelles = () => {
         postal_code: formData.postal_code,
         country: formData.country,
         current_position: formData.current_position,
-        years_of_experience: parseInt(formData.years_of_experience) || 0,
+        experience_years: formData.experience_years,
         skills: formData.skills,
         education_level: formData.education_level,
-        preferred_location: formData.preferred_location,
-        salary_expectation: formData.salary_expectation
+        linkedin_profile: formData.linkedin_profile,
+        github_profile: formData.github_profile,
+        bio: formData.bio
       };
 
-      // Mettre à jour les informations utilisateur
+      // Mettre à jour toutes les informations utilisateur dans CustomUser
       await api.patch(`/users/users/${user.id}/`, userData);
-
-      // Mettre à jour ou créer le profil
-      await api.put('/users/profile/me/', profileData);
 
       setSuccess(true);
       setTimeout(() => {
@@ -319,18 +316,16 @@ const InfosPersonnelles = () => {
                 <Form.Group className="mb-3">
                   <Form.Label>Années d'expérience</Form.Label>
                   <Form.Select
-                    name="years_of_experience"
-                    value={formData.years_of_experience}
+                    name="experience_years"
+                    value={formData.experience_years}
                     onChange={handleChange}
                   >
-                    <option value="0">Débutant (0 an)</option>
-                    <option value="1">1 an</option>
-                    <option value="2">2 ans</option>
-                    <option value="3">3 ans</option>
-                    <option value="4">4 ans</option>
-                    <option value="5">5 ans</option>
-                    <option value="6">6-10 ans</option>
-                    <option value="10">Plus de 10 ans</option>
+                    <option value="">Sélectionner...</option>
+                    <option value="0-1">0-1 an</option>
+                    <option value="1-3">1-3 ans</option>
+                    <option value="3-5">3-5 ans</option>
+                    <option value="5-10">5-10 ans</option>
+                    <option value="10+">Plus de 10 ans</option>
                   </Form.Select>
                 </Form.Group>
 
@@ -354,33 +349,56 @@ const InfosPersonnelles = () => {
                     onChange={handleChange}
                   >
                     <option value="">Sélectionner...</option>
-                    <option value="Bac">Baccalauréat</option>
-                    <option value="Bac+2">Bac+2 (DUT, BTS)</option>
-                    <option value="Bac+3">Bac+3 (Licence)</option>
-                    <option value="Bac+5">Bac+5 (Master, Ingénieur)</option>
-                    <option value="Doctorat">Doctorat</option>
+                    <option value="BAC">Baccalauréat</option>
+                    <option value="BAC+2">BAC+2</option>
+                    <option value="BAC+3">BAC+3 (Licence)</option>
+                    <option value="BAC+5">BAC+5 (Master)</option>
+                    <option value="BAC+8">BAC+8 (Doctorat)</option>
                   </Form.Select>
                 </Form.Group>
 
-                <Form.Group className="mb-3">
-                  <Form.Label>Lieu de travail préféré</Form.Label>
-                  <Form.Control
-                    type="text"
-                    name="preferred_location"
-                    value={formData.preferred_location}
-                    onChange={handleChange}
-                    placeholder="Casablanca, Télétravail, etc."
-                  />
-                </Form.Group>
+                {/* Profils professionnels */}
+                <h6 className="text-primary mb-3">
+                  <i className="bi bi-link-45deg me-2"></i>
+                  Profils professionnels
+                </h6>
+
+                <Row>
+                  <Col md={6}>
+                    <Form.Group className="mb-3">
+                      <Form.Label>LinkedIn</Form.Label>
+                      <Form.Control
+                        type="url"
+                        name="linkedin_profile"
+                        value={formData.linkedin_profile}
+                        onChange={handleChange}
+                        placeholder="https://linkedin.com/in/votre-profil"
+                      />
+                    </Form.Group>
+                  </Col>
+                  <Col md={6}>
+                    <Form.Group className="mb-3">
+                      <Form.Label>GitHub</Form.Label>
+                      <Form.Control
+                        type="url"
+                        name="github_profile"
+                        value={formData.github_profile}
+                        onChange={handleChange}
+                        placeholder="https://github.com/votre-profil"
+                      />
+                    </Form.Group>
+                  </Col>
+                </Row>
 
                 <Form.Group className="mb-4">
-                  <Form.Label>Prétentions salariales</Form.Label>
+                  <Form.Label>Présentation personnelle</Form.Label>
                   <Form.Control
-                    type="text"
-                    name="salary_expectation"
-                    value={formData.salary_expectation}
+                    as="textarea"
+                    rows={4}
+                    name="bio"
+                    value={formData.bio}
                     onChange={handleChange}
-                    placeholder="15000-20000 MAD, À négocier, etc."
+                    placeholder="Décrivez-vous en quelques lignes..."
                   />
                 </Form.Group>
 
