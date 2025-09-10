@@ -3,10 +3,11 @@ import './JobGateLogo.css';
 
 const JobGateLogo = ({ size = 'medium', className = '', onClick = null }) => {
   const sizeStyles = {
-    small: { width: '80px', height: '30px' },
-    medium: { width: '120px', height: '45px' },
-    large: { width: '160px', height: '60px' }
+    small:  { width: '120px', height: '45px' },   // +20px largeur, +7px hauteur
+    medium: { width: '170px', height: '65px' },   // +20px largeur, +9px hauteur
+    large:  { width: '230px', height: '85px' }    // +30px largeur, +10px hauteur
   };
+  
 
   const logoStyle = {
     display: 'flex',
@@ -18,7 +19,6 @@ const JobGateLogo = ({ size = 'medium', className = '', onClick = null }) => {
 
   const imgStyle = {
     maxWidth: '100%',
-    height: 'auto',
     objectFit: 'contain',
     height: sizeStyles[size].height
   };

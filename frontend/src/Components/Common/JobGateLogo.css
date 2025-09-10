@@ -12,30 +12,30 @@
 
 /* Tailles du logo */
 .jobgate-logo-small {
-  width: 80px;
-  height: 30px;
+  width: 100px;
+  height: 38px;
 }
 
 .jobgate-logo-small .jobgate-logo-img {
-  height: 30px;
+  height: 38px;
 }
 
 .jobgate-logo-medium {
-  width: 120px;
-  height: 45px;
+  width: 150px;
+  height: 56px;
 }
 
 .jobgate-logo-medium .jobgate-logo-img {
-  height: 45px;
+  height: 56px;
 }
 
 .jobgate-logo-large {
-  width: 160px;
-  height: 60px;
+  width: 200px;
+  height: 75px;
 }
 
 .jobgate-logo-large .jobgate-logo-img {
-  height: 60px;
+  height: 75px;
 }
 
 /* Positionnement en haut à gauche */
@@ -65,20 +65,20 @@
   }
   
   .jobgate-logo-small {
-    width: 70px;
-    height: 25px;
+    width: 85px;
+    height: 32px;
   }
   
   .jobgate-logo-small .jobgate-logo-img {
-    height: 25px;
+    height: 32px;
   }
   
   .jobgate-logo-medium {
-    width: 100px;
-    height: 35px;
+    width: 125px;
+    height: 47px;
   }
   
   .jobgate-logo-medium .jobgate-logo-img {
-    height: 35px;
+    height: 47px;
   }
 }

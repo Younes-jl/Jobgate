@@ -144,7 +144,6 @@ const CandidateNotifications = () => {
 
   return (
     <div className="position-relative">
-      <JobGateLogo size="medium" className="jobgate-logo-header" />
       <Container fluid className="py-4">
       <Row>
         <Col md={12}>

@@ -77,7 +77,6 @@ const CandidateDashboard = () => {
 
   return (
     <div className="position-relative">
-      <JobGateLogo size="medium" className="jobgate-logo-header" />
       <Container fluid className="py-4">
         <Row>
         {/* Section offres d'emploi - maintenant en pleine largeur */}
