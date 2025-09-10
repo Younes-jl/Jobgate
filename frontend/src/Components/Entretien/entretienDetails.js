@@ -681,13 +681,13 @@ const EntretienPage = () => {
                 </div>
               </div>
 
-              {/* Zone vidéo principale */}
+              {/* Zone vidéo principale - Agrandie */}
               <Card className="mb-3 shadow">
                 <Card.Body className="p-0">
                   <div 
                     className="position-relative d-flex align-items-center justify-content-center"
                     style={{ 
-                      height: '400px',
+                      height: '600px',
                       backgroundColor: '#e8f4fd',
                       borderRadius: '8px'
                     }}
