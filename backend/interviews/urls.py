@@ -1,10 +1,10 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    JobOfferViewSet, InterviewCampaignViewSet, CampaignLinkViewSet,
-    InterviewQuestionViewSet, InterviewAnswerViewSet, JobApplicationViewSet,
-    CloudinaryVideoUploadView, AIQuestionGeneratorView, AIQuestionAnalysisView,
-    EvaluateVideoView, AiEvaluationViewSet
+    JobOfferViewSet, InterviewCampaignViewSet, InterviewQuestionViewSet,
+    CampaignLinkViewSet, InterviewAnswerViewSet, JobApplicationViewSet,
+    AiEvaluationViewSet, RecruiterEvaluationViewSet, GlobalInterviewEvaluationViewSet,
+    CloudinaryVideoUploadView, EvaluateVideoView, AIQuestionGeneratorView, AIQuestionAnalysisView
 )
 from .applications_api import candidate_details
 from .notification_views import NotificationViewSet
@@ -18,6 +18,8 @@ router.register(r'applications', JobApplicationViewSet, basename='job-applicatio
 router.register(r'campaign-links', CampaignLinkViewSet, basename='campaign-links')
 router.register(r'answers', InterviewAnswerViewSet, basename='interview-answers')
 router.register(r'ai-evaluations', AiEvaluationViewSet, basename='ai-evaluations')
+router.register(r'recruiter-evaluations', RecruiterEvaluationViewSet, basename='recruiter-evaluations')
+router.register(r'global-evaluations', GlobalInterviewEvaluationViewSet, basename='global-evaluations')
 router.register(r'notifications', NotificationViewSet, basename='notifications')
 
 urlpatterns = [

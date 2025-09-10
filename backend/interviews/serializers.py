@@ -1,5 +1,8 @@
 from rest_framework import serializers
-from .models import JobOffer, InterviewCampaign, InterviewQuestion, JobApplication, CampaignLink, InterviewAnswer, AiEvaluation
+from .models import (
+    JobOffer, InterviewCampaign, InterviewQuestion, CampaignLink, 
+    InterviewAnswer, JobApplication, AiEvaluation, RecruiterEvaluation, GlobalInterviewEvaluation
+)
 from users.models import CustomUser
 from users.serializers import UserSerializer
 
@@ -175,7 +178,7 @@ class InterviewAnswerSerializer(serializers.ModelSerializer):
 
 
 class AiEvaluationSerializer(serializers.ModelSerializer):
-    """Serializer pour les évaluations IA des réponses vidéo"""
+    """Serializer pour les évaluations IA avec scores détaillés"""
     candidate_name = serializers.SerializerMethodField()
     question_text = serializers.CharField(source='interview_answer.question.text', read_only=True)
     campaign_title = serializers.CharField(source='interview_answer.question.campaign.title', read_only=True)
@@ -185,15 +188,25 @@ class AiEvaluationSerializer(serializers.ModelSerializer):
     ai_provider_display = serializers.SerializerMethodField()
     status_display = serializers.SerializerMethodField()
     
+    # Nouveaux champs pour les scores détaillés
+    communication_score_percentage = serializers.SerializerMethodField()
+    confidence_score_percentage = serializers.SerializerMethodField()
+    relevance_score_percentage = serializers.SerializerMethodField()
+    
     class Meta:
         model = AiEvaluation
         fields = [
-            'id', 'candidate', 'interview_answer', 'transcription', 'ai_score', 
-            'ai_feedback', 'ai_provider', 'status', 'expected_skills', 
-            'processing_time', 'error_message', 'created_at', 'updated_at', 
-            'completed_at', 'candidate_name', 'question_text', 'campaign_title',
-            'video_url', 'score_percentage', 'score_grade', 'ai_provider_display',
-            'status_display'
+            'id', 'candidate', 'candidate_name', 'interview_answer',
+            'transcription', 'ai_score', 'ai_feedback', 'ai_provider',
+            'status', 'expected_skills', 'processing_time', 'error_message',
+            'created_at', 'updated_at', 'completed_at',
+            'question_text', 'campaign_title', 'video_url', 'score_percentage',
+            'score_grade', 'ai_provider_display', 'status_display',
+            # Nouveaux champs détaillés
+            'communication_score', 'confidence_score', 'relevance_score', 'technical_score',
+            'strengths', 'weaknesses', 'recommendations', 'overall_impression',
+            'question_context', 'expected_skills_met', 'improvement_areas',
+            'communication_score_percentage', 'confidence_score_percentage', 'relevance_score_percentage'
         ]
         read_only_fields = [
             'id', 'created_at', 'updated_at', 'completed_at', 'candidate_name',
@@ -222,6 +235,24 @@ class AiEvaluationSerializer(serializers.ModelSerializer):
     def get_status_display(self, obj):
         """Statut affiché"""
         return dict(AiEvaluation.STATUS_CHOICES).get(obj.status, obj.status)
+    
+    def get_communication_score_percentage(self, obj):
+        """Score de communication sous forme de pourcentage"""
+        if obj.communication_score is not None:
+            return f"{obj.communication_score:.1f}%"
+        return "N/A"
+    
+    def get_confidence_score_percentage(self, obj):
+        """Score de confiance sous forme de pourcentage"""
+        if obj.confidence_score is not None:
+            return f"{obj.confidence_score:.1f}%"
+        return "N/A"
+    
+    def get_relevance_score_percentage(self, obj):
+        """Score de pertinence sous forme de pourcentage"""
+        if obj.relevance_score is not None:
+            return f"{obj.relevance_score:.1f}%"
+        return "N/A"
 
 
 class EvaluateVideoRequestSerializer(serializers.Serializer):
@@ -275,13 +306,185 @@ class EvaluateVideoRequestSerializer(serializers.Serializer):
 
 
 class EvaluateVideoResponseSerializer(serializers.Serializer):
-    """Serializer pour les réponses d'évaluation vidéo"""
-    transcription = serializers.CharField(allow_null=True)
-    ai_score = serializers.FloatField(allow_null=True)
-    ai_feedback = serializers.CharField(allow_null=True)
-    ai_provider = serializers.CharField(allow_null=True)
-    processing_time = serializers.FloatField(allow_null=True)
+    """Serializer pour les réponses d'évaluation vidéo avec scores détaillés"""
+    transcription = serializers.CharField(allow_null=True, required=False)
+    ai_score = serializers.FloatField(allow_null=True, required=False)
+    ai_feedback = serializers.CharField(allow_null=True, required=False)
+    
+    # Scores détaillés - tous optionnels
+    communication_score = serializers.FloatField(allow_null=True, required=False)
+    communication_feedback = serializers.CharField(allow_null=True, required=False)
+    confidence_score = serializers.FloatField(allow_null=True, required=False)
+    confidence_feedback = serializers.CharField(allow_null=True, required=False)
+    relevance_score = serializers.FloatField(allow_null=True, required=False)
+    relevance_feedback = serializers.CharField(allow_null=True, required=False)
+    technical_scores = serializers.JSONField(allow_null=True, required=False)
+    
+    ai_provider = serializers.CharField(allow_null=True, required=False)
+    processing_time = serializers.FloatField(allow_null=True, required=False)
     status = serializers.CharField()
-    error_message = serializers.CharField(allow_null=True)
-    evaluation_id = serializers.IntegerField(allow_null=True)
+    error_message = serializers.CharField(allow_null=True, required=False)
+    evaluation_id = serializers.IntegerField(allow_null=True, required=False)
+
+
+class RecruiterEvaluationSerializer(serializers.ModelSerializer):
+    """Serializer pour les évaluations des recruteurs"""
+    candidate_name = serializers.SerializerMethodField()
+    question_text = serializers.CharField(source='interview_answer.question.text', read_only=True)
+    campaign_title = serializers.CharField(source='interview_answer.question.campaign.title', read_only=True)
+    video_url = serializers.CharField(source='interview_answer.cloudinary_secure_url', read_only=True)
+    recruiter_name = serializers.SerializerMethodField()
+    overall_score_display = serializers.SerializerMethodField()
+    recommendation_display = serializers.SerializerMethodField()
+    recommendation_color = serializers.SerializerMethodField()
+    
+    # Scores formatés
+    communication_score_percentage = serializers.SerializerMethodField()
+    confidence_score_percentage = serializers.SerializerMethodField()
+    relevance_score_percentage = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = RecruiterEvaluation
+        fields = [
+            'id', 'interview_answer', 'recruiter', 'recruiter_name',
+            'communication_score', 'communication_feedback',
+            'confidence_score', 'confidence_feedback', 
+            'relevance_score', 'relevance_feedback',
+            'overall_score', 'overall_feedback', 'recommendation',
+            'created_at', 'updated_at',
+            # Champs calculés pour l'affichage
+            'candidate_name', 'question_text', 'campaign_title', 'video_url',
+            'overall_score_display', 'recommendation_display', 'recommendation_color',
+            'communication_score_percentage', 'confidence_score_percentage', 'relevance_score_percentage'
+        ]
+        read_only_fields = [
+            'id', 'recruiter', 'created_at', 'updated_at', 'candidate_name', 'question_text', 
+            'campaign_title', 'video_url', 'recruiter_name', 'overall_score_display',
+            'recommendation_display', 'recommendation_color'
+        ]
+    
+    def get_candidate_name(self, obj):
+        """Nom complet du candidat"""
+        candidate = obj.interview_answer.candidate
+        if candidate.first_name and candidate.last_name:
+            return f"{candidate.first_name} {candidate.last_name}"
+        return candidate.username
+    
+    def get_recruiter_name(self, obj):
+        """Nom complet du recruteur"""
+        if obj.recruiter.first_name and obj.recruiter.last_name:
+            return f"{obj.recruiter.first_name} {obj.recruiter.last_name}"
+        return obj.recruiter.username
+    
+    def get_overall_score_display(self, obj):
+        """Score global formaté"""
+        return obj.get_overall_score_display()
+    
+    def get_recommendation_display(self, obj):
+        """Recommandation formatée"""
+        if obj.recommendation:
+            return dict(RecruiterEvaluation.RECOMMENDATION_CHOICES).get(obj.recommendation, obj.recommendation)
+        return "Non définie"
+    
+    def get_recommendation_color(self, obj):
+        """Couleur de la recommandation pour l'UI"""
+        return obj.get_recommendation_display_color()
+    
+    def get_communication_score_percentage(self, obj):
+        """Score de communication formaté"""
+        if obj.communication_score is not None:
+            return f"{obj.communication_score:.1f}%"
+        return "N/A"
+    
+    def get_confidence_score_percentage(self, obj):
+        """Score de confiance formaté"""
+        if obj.confidence_score is not None:
+            return f"{obj.confidence_score:.1f}%"
+        return "N/A"
+    
+    def get_relevance_score_percentage(self, obj):
+        """Score de pertinence formaté"""
+        if obj.relevance_score is not None:
+            return f"{obj.relevance_score:.1f}%"
+        return "N/A"
+    
+    def create(self, validated_data):
+        """Création d'une évaluation avec gestion automatique du recruteur"""
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            validated_data['recruiter'] = request.user
+        return super().create(validated_data)
+    
+    def validate_interview_answer(self, value):
+        """Valide que la réponse d'entretien existe et appartient à une campagne du recruteur"""
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            # Vérifier que le recruteur a accès à cette réponse via ses offres d'emploi
+            campaign = value.question.campaign
+            if campaign.job_offer.recruiter != request.user:
+                raise serializers.ValidationError(
+                    "Vous n'avez pas l'autorisation d'évaluer cette réponse d'entretien"
+                )
+        return value
+
+    def validate(self, attrs):
+        """Validation des scores (0-100)"""
+        score_fields = ['communication_score', 'confidence_score', 'relevance_score', 'overall_score']
+
+        def validate_overall_score(value):
+            """Valide le score global"""
+            if value is not None and (value < 0 or value > 100):
+                raise serializers.ValidationError("Le score global doit être entre 0 et 100")
+            return value
+
+        for field in score_fields:
+            score = attrs.get(field)
+            if score is not None and (score < 0 or score > 100):
+                raise serializers.ValidationError({
+                    field: "Le score doit être compris entre 0 et 100"
+                })
+
+        return attrs
+
+
+class GlobalInterviewEvaluationSerializer(serializers.ModelSerializer):
+    """Serializer pour l'évaluation globale d'entretien"""
+    candidate_name = serializers.CharField(source='candidate.get_full_name', read_only=True)
+    recruiter_name = serializers.CharField(source='recruiter.get_full_name', read_only=True)
+    job_title = serializers.CharField(source='job_application.job_offer.title', read_only=True)
+    overall_score_display = serializers.SerializerMethodField()
+    recommendation_display = serializers.CharField(source='get_final_recommendation_display', read_only=True)
+    
+    class Meta:
+        model = GlobalInterviewEvaluation
+        fields = [
+            'id', 'job_application', 'candidate', 'recruiter',
+            'candidate_name', 'recruiter_name', 'job_title',
+            'technical_skills', 'communication_skills', 'problem_solving',
+            'cultural_fit', 'motivation', 'final_recommendation', 'recommendation_display',
+            'strengths', 'weaknesses', 'general_comments', 'next_steps',
+            'overall_score', 'overall_score_display',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'overall_score', 'created_at', 'updated_at']
+    
+    def get_overall_score_display(self, obj):
+        """Score global formaté"""
+        if obj.overall_score is not None:
+            return f"{obj.overall_score:.1f}/100"
+        return "Non calculé"
+    
+    def validate(self, attrs):
+        """Validation des scores (0-100)"""
+        score_fields = ['technical_skills', 'communication_skills', 'problem_solving', 'cultural_fit', 'motivation']
+        
+        for field in score_fields:
+            score = attrs.get(field)
+            if score is not None and (score < 0 or score > 100):
+                raise serializers.ValidationError({
+                    field: "Le score doit être compris entre 0 et 100"
+                })
+        
+        return attrs
+
 

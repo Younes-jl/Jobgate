@@ -31,6 +31,40 @@ const InterviewDetails = () => {
     global: 0,
     generalComments: ''
   });
+  
+  // États pour l'évaluation par question
+  const [questionEvaluations, setQuestionEvaluations] = useState({});
+  const [currentQuestionEvaluation, setCurrentQuestionEvaluation] = useState({
+    communication_score: 0,
+    communication_feedback: '',
+    confidence_score: 0,
+    confidence_feedback: '',
+    relevance_score: 0,
+    relevance_feedback: '',
+    overall_score: 0,
+    overall_feedback: '',
+    recommendation: ''
+  });
+  const [savingEvaluation, setSavingEvaluation] = useState(false);
+  const [evaluationSaved, setEvaluationSaved] = useState(false);
+  const [allQuestionsEvaluated, setAllQuestionsEvaluated] = useState(false);
+  
+  // États pour l'évaluation globale de l'entretien
+  const [globalEvaluation, setGlobalEvaluation] = useState({
+    technical_skills: 0,
+    communication_skills: 0,
+    problem_solving: 0,
+    cultural_fit: 0,
+    motivation: 0,
+    final_recommendation: '',
+    strengths: '',
+    weaknesses: '',
+    general_comments: '',
+    next_steps: ''
+  });
+  const [showGlobalEvaluation, setShowGlobalEvaluation] = useState(false);
+  const [savingGlobalEvaluation, setSavingGlobalEvaluation] = useState(false);
+  const [globalEvaluationSaved, setGlobalEvaluationSaved] = useState(false);
   const [inviteManagerModal, setInviteManagerModal] = useState(false);
   const [technicalInterviewModal, setTechnicalInterviewModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState('');
@@ -197,6 +231,9 @@ const InterviewDetails = () => {
       if (currentAnswer && currentAnswer.video_url) {
         videoRef.current.load(); // Force le rechargement de la vidéo
         setVideoPlaying(false); // Reset l'état de lecture
+        
+        // Charger l'évaluation existante pour cette réponse
+        fetchQuestionEvaluation(currentAnswer.id);
       }
     }
   }, [currentQuestionIndex, candidateAnswers]);
@@ -558,31 +595,6 @@ const InterviewDetails = () => {
     }
   };
 
-  // Fonction pour sauvegarder l'évaluation finale
-  const saveFinalEvaluation = async () => {
-    try {
-      const evaluationData = {
-        application_id: applicationId,
-        technical_score: finalEvaluation.technical,
-        communication_score: finalEvaluation.communication,
-        motivation_score: finalEvaluation.motivation,
-        style_score: finalEvaluation.style,
-        non_verbal_score: finalEvaluation.nonVerbal,
-        global_score: finalEvaluation.global,
-        general_comments: finalEvaluation.generalComments,
-        ai_analysis: aiAnalysis
-      };
-      
-      console.log('Sauvegarde de l\'évaluation finale:', evaluationData);
-      // TODO: Ajouter l'appel API réel
-      // await api.post(`/interviews/applications/${applicationId}/evaluation/`, evaluationData);
-      
-      alert('Évaluation sauvegardée avec succès!');
-    } catch (error) {
-      console.error('Erreur lors de la sauvegarde:', error);
-      alert('Erreur lors de la sauvegarde');
-    }
-  };
 
   // Fonction pour ouvrir la modal de confirmation
   const handleDecision = (decision) => {
@@ -637,7 +649,6 @@ const InterviewDetails = () => {
     } catch (error) {
       console.error('Erreur lors de la décision:', error);
       alert('Erreur lors de la mise à jour du statut');
-    } finally {
       setProcessingAction(false);
     }
   };
@@ -656,6 +667,156 @@ const InterviewDetails = () => {
     } finally {
       setLoadingCandidateDetails(false);
     }
+  };
+
+  // Fonction pour charger l'évaluation existante pour une question
+  const fetchQuestionEvaluation = async (answerId) => {
+    if (!answerId) return;
+    
+    try {
+      const response = await api.get(`/interviews/recruiter-evaluations/by_answer/?answer_id=${answerId}`);
+      if (response.data.evaluation) {
+        const evaluation = response.data.evaluation;
+        setCurrentQuestionEvaluation(evaluation);
+        setQuestionEvaluations(prev => ({
+          ...prev,
+          [answerId]: evaluation
+        }));
+        setEvaluationSaved(true);
+      } else {
+        // Reset pour une nouvelle évaluation
+        setCurrentQuestionEvaluation({
+          communication_score: 0,
+          communication_feedback: '',
+          confidence_score: 0,
+          confidence_feedback: '',
+          relevance_score: 0,
+          relevance_feedback: '',
+          overall_score: 0,
+          overall_feedback: '',
+          recommendation: ''
+        });
+        setEvaluationSaved(false);
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement de l\'évaluation:', error);
+    }
+  };
+
+  // Fonction pour sauvegarder l'évaluation d'une question
+  const saveQuestionEvaluation = async () => {
+    if (!candidateAnswers[currentQuestionIndex]?.id) {
+      alert('Aucune réponse sélectionnée pour l\'évaluation');
+      return;
+    }
+
+    setSavingEvaluation(true);
+    try {
+      const answerId = candidateAnswers[currentQuestionIndex].id;
+      const evaluationData = {
+        interview_answer: answerId,
+        ...currentQuestionEvaluation
+      };
+
+      const response = await api.post('/interviews/recruiter-evaluations/evaluate_answer/', evaluationData);
+      
+      if (response.data.evaluation) {
+        const savedEvaluation = response.data.evaluation;
+        setCurrentQuestionEvaluation(savedEvaluation);
+        setQuestionEvaluations(prev => ({
+          ...prev,
+          [answerId]: savedEvaluation
+        }));
+        setEvaluationSaved(true);
+        
+        // Vérifier si toutes les questions ont été évaluées
+        checkAllQuestionsEvaluated();
+        
+        alert('Évaluation de la question sauvegardée avec succès!');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde:', error);
+      alert('Erreur lors de la sauvegarde de l\'évaluation');
+    } finally {
+      setSavingEvaluation(false);
+    }
+  };
+
+  // Fonction pour mettre à jour les champs d'évaluation de la question courante
+  const updateQuestionEvaluationField = (field, value) => {
+    setCurrentQuestionEvaluation(prev => ({
+      ...prev,
+      [field]: value
+    }));
+    setEvaluationSaved(false);
+  };
+
+  // Fonction pour vérifier si toutes les questions ont été évaluées
+  const checkAllQuestionsEvaluated = () => {
+    const evaluatedCount = Object.keys(questionEvaluations).length;
+    const totalQuestions = candidateAnswers.length;
+    setAllQuestionsEvaluated(evaluatedCount === totalQuestions && totalQuestions > 0);
+  };
+
+  // Effect pour vérifier l'état d'évaluation complète
+  useEffect(() => {
+    checkAllQuestionsEvaluated();
+  }, [questionEvaluations, candidateAnswers]);
+
+  // Fonctions pour l'évaluation globale de l'entretien
+  const loadGlobalEvaluation = async () => {
+    try {
+      const response = await api.get(`/interviews/global-evaluations/by_application/?application_id=${applicationId}`);
+      if (response.data && !response.data.message) {
+        setGlobalEvaluation(response.data);
+        setGlobalEvaluationSaved(true);
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement de l\'évaluation globale:', error);
+    }
+  };
+
+  const saveGlobalEvaluation = async () => {
+    setSavingGlobalEvaluation(true);
+    try {
+      const evaluationData = {
+        job_application: parseInt(applicationId),
+        ...globalEvaluation
+      };
+
+      const response = await api.post('/interviews/global-evaluations/create_or_update/', evaluationData);
+      
+      if (response.data.evaluation) {
+        setGlobalEvaluation(response.data.evaluation);
+        setGlobalEvaluationSaved(true);
+        alert('Évaluation globale sauvegardée avec succès!');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde de l\'évaluation globale:', error);
+      alert('Erreur lors de la sauvegarde de l\'évaluation globale');
+    } finally {
+      setSavingGlobalEvaluation(false);
+    }
+  };
+
+  const updateGlobalEvaluationField = (field, value) => {
+    setGlobalEvaluation(prev => ({
+      ...prev,
+      [field]: value
+    }));
+    setGlobalEvaluationSaved(false);
+  };
+
+  const calculateOverallScore = () => {
+    const scores = [
+      globalEvaluation.technical_skills,
+      globalEvaluation.communication_skills,
+      globalEvaluation.problem_solving,
+      globalEvaluation.cultural_fit,
+      globalEvaluation.motivation
+    ];
+    const validScores = scores.filter(score => score > 0);
+    return validScores.length > 0 ? Math.round(validScores.reduce((a, b) => a + b, 0) / validScores.length) : 0;
   };
 
   // Fonction pour inviter un manager
@@ -924,146 +1085,234 @@ const InterviewDetails = () => {
           
           {candidateAnswers.length > 0 && currentAnswer ? (
             <>
-              {/* Current Question Score */}
+
+              {/* Évaluation détaillée du recruteur */}
               <Card className="shadow-sm border-0 mb-4">
                 <Card.Body>
-                  <h6 className="fw-bold mb-3">Score for Question {currentQuestionIndex + 1}</h6>
+                  <h6 className="fw-bold mb-3">
+                    <i className="bi bi-person-check me-2"></i>
+                    Évaluation Détaillée - Question {currentQuestionIndex + 1}
+                  </h6>
                   
-                  <div className="mb-3">
-                    <label className="form-label small text-muted">Rating (1-5 stars)</label>
-                    <div className="star-rating d-flex align-items-center mb-2">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <i
-                          key={star}
-                          className={`bi ${star <= currentScore ? 'bi-star-fill' : 'bi-star'} text-warning me-1`}
-                          style={{ fontSize: '1.2rem', cursor: 'pointer' }}
-                          onClick={() => setCurrentScore(star)}
-                        ></i>
-                      ))}
-                      <span className="ms-2 text-muted">({currentScore}/5)</span>
-                    </div>
+                  {evaluationSaved && (
+                    <Alert variant="success" className="mb-3">
+                      <i className="bi bi-check-circle me-2"></i>
+                      Évaluation sauvegardée avec succès
+                    </Alert>
+                  )}
+
+                  {/* Scores d'évaluation */}
+                  <div className="evaluation-scores mb-4">
+                    <Row className="g-3">
+                      {/* Communication */}
+                      <Col md={4}>
+                        <Card className="h-100 border-0 shadow-sm">
+                          <Card.Body className="p-3">
+                            <div className="text-center mb-3">
+                              <i className="bi bi-chat-dots fs-2 text-primary"></i>
+                              <h6 className="mt-2 mb-1 fw-bold text-primary">Communication</h6>
+                              <small className="text-muted">Clarté, fluidité, structure</small>
+                            </div>
+                            <Form.Control
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={currentQuestionEvaluation.communication_score || ''}
+                              onChange={(e) => updateQuestionEvaluationField('communication_score', parseFloat(e.target.value) || 0)}
+                              placeholder="Score /100"
+                              className="text-center fw-bold"
+                              style={{ fontSize: '1.1rem' }}
+                            />
+                          </Card.Body>
+                        </Card>
+                      </Col>
+
+                      {/* Pertinence */}
+                      <Col md={4}>
+                        <Card className="h-100 border-0 shadow-sm">
+                          <Card.Body className="p-3">
+                            <div className="text-center mb-3">
+                              <i className="bi bi-bullseye fs-2 text-info"></i>
+                              <h6 className="mt-2 mb-1 fw-bold text-info">Pertinence</h6>
+                              <small className="text-muted">Alignement avec la question</small>
+                            </div>
+                            <Form.Control
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={currentQuestionEvaluation.relevance_score || ''}
+                              onChange={(e) => updateQuestionEvaluationField('relevance_score', parseFloat(e.target.value) || 0)}
+                              placeholder="Score /100"
+                              className="text-center fw-bold"
+                              style={{ fontSize: '1.1rem' }}
+                            />
+                          </Card.Body>
+                        </Card>
+                      </Col>
+
+                      {/* Confiance */}
+                      <Col md={4}>
+                        <Card className="h-100 border-0 shadow-sm">
+                          <Card.Body className="p-3">
+                            <div className="text-center mb-3">
+                              <i className="bi bi-shield-check fs-2 text-success"></i>
+                              <h6 className="mt-2 mb-1 fw-bold text-success">Confiance</h6>
+                              <small className="text-muted">Assurance, peu d'hésitation</small>
+                            </div>
+                            <Form.Control
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={currentQuestionEvaluation.confidence_score || ''}
+                              onChange={(e) => updateQuestionEvaluationField('confidence_score', parseFloat(e.target.value) || 0)}
+                              placeholder="Score /100"
+                              className="text-center fw-bold"
+                              style={{ fontSize: '1.1rem' }}
+                            />
+                          </Card.Body>
+                        </Card>
+                      </Col>
+                    </Row>
                   </div>
-                  
-                  <div className="mb-3">
-                    <label className="form-label small text-muted">Comments</label>
-                    <Form.Control
-                      as="textarea"
-                      rows={3}
-                      placeholder="Add specific feedback for this answer..."
-                      value={currentComments}
-                      onChange={(e) => setCurrentComments(e.target.value)}
-                      style={{ resize: 'none', fontSize: '0.9rem' }}
-                    />
-                    <div className="text-end mt-1">
-                      <small className="text-muted">{currentComments.length}/500</small>
-                    </div>
+
+                  {/* Commentaire global */}
+                  <div className="mb-4">
+                    <Card className="border-0 shadow-sm">
+                      <Card.Header className="bg-light border-0">
+                        <h6 className="mb-0 fw-bold">
+                          <i className="bi bi-chat-text me-2 text-dark"></i>
+                          Commentaire Global
+                        </h6>
+                      </Card.Header>
+                      <Card.Body>
+                        <Form.Control
+                          as="textarea"
+                          rows={4}
+                          value={currentQuestionEvaluation.overall_feedback || ''}
+                          onChange={(e) => updateQuestionEvaluationField('overall_feedback', e.target.value)}
+                          placeholder="Commentaire général sur cette réponse..."
+                          style={{ resize: 'none', border: 'none', boxShadow: 'none' }}
+                          className="p-0"
+                        />
+                      </Card.Body>
+                    </Card>
                   </div>
-                  
+
+                  {/* Boutons d'action */}
                   <div className="d-grid gap-2">
                     <Button 
-                      variant="primary"
-                      onClick={() => {
-                        // Save current question score
-                        const updatedAnswers = [...candidateAnswers];
-                        updatedAnswers[currentQuestionIndex] = {
-                          ...updatedAnswers[currentQuestionIndex],
-                          score: currentScore * 20, // Convert 1-5 to 0-100
-                          recruiter_notes: currentComments
-                        };
-                        setCandidateAnswers(updatedAnswers);
-                      }}
+                      variant="success"
+                      onClick={saveQuestionEvaluation}
+                      disabled={savingEvaluation}
                     >
-                      <i className="bi bi-save me-2"></i>
-                      Save Score & Comment
-                    </Button>
-                    
-                    <Button 
-                      variant="outline-info"
-                      onClick={() => analyzeCurrentVideo()}
-                      disabled={analyzingAI}
-                    >
-                      {analyzingAI ? (
+                      {savingEvaluation ? (
                         <>
                           <Spinner size="sm" className="me-2" />
-                          Analyzing...
+                          Sauvegarde...
                         </>
                       ) : (
                         <>
-                          <i className="bi bi-robot me-2"></i>
-                          AI Analysis
+                          <i className="bi bi-check-circle me-2"></i>
+                          Sauvegarder l'Évaluation
                         </>
                       )}
                     </Button>
-                  </div>
-                  
-                  {/* Affichage de l'analyse IA de la vidéo courante */}
-                  {currentVideoAnalysis && (
-                    <div className="mt-4 p-3 bg-light rounded">
-                      <h6 className="fw-bold text-info mb-3">
-                        <i className="bi bi-robot me-2"></i>
-                        AI Analysis - Question {currentVideoAnalysis.questionIndex}
-                      </h6>
-                      
-                      <div className="row">
-                        <div className="col-md-6">
-                          <div className="mb-3">
-                            <strong className="text-success">Strengths:</strong>
-                            <ul className="mt-2 mb-0">
-                              {currentVideoAnalysis.strengths.map((strength, index) => (
-                                <li key={index} className="small">{strength}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        </div>
-                        <div className="col-md-6">
-                          <div className="mb-3">
-                            <strong className="text-warning">Areas for improvement:</strong>
-                            <ul className="mt-2 mb-0">
-                              {currentVideoAnalysis.weaknesses.map((weakness, index) => (
-                                <li key={index} className="small">{weakness}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="mb-3">
-                        <strong>AI Suggested Score:</strong>
-                        <div className="d-flex align-items-center mt-1">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <i
-                              key={star}
-                              className={`bi ${star <= currentVideoAnalysis.suggestedScore ? 'bi-star-fill' : 'bi-star'} text-warning me-1`}
-                            ></i>
+                    {evaluationSaved && (
+                      <Alert variant="success" className="mb-0 mt-2">
+                        <i className="bi bi-check-circle me-2"></i>
+                        Évaluation de cette question sauvegardée avec succès!
+                      </Alert>
+                    )}
+                    
+                    {/* Indicateur de progression */}
+                    <div className="mt-3">
+                      <div className="d-flex justify-content-between align-items-center mb-2">
+                        <small className="text-muted">
+                          Progression: {Object.keys(questionEvaluations).length}/{candidateAnswers.length} questions évaluées
+                        </small>
+                        <div className="d-flex gap-1">
+                          {candidateAnswers.map((answer, index) => (
+                            <div
+                              key={answer.id}
+                              className={`rounded-circle ${
+                                questionEvaluations[answer.id] ? 'bg-success' : 'bg-secondary'
+                              }`}
+                              style={{ width: '12px', height: '12px' }}
+                              title={`Question ${index + 1} ${questionEvaluations[answer.id] ? 'évaluée' : 'non évaluée'}`}
+                            ></div>
                           ))}
-                          <span className="ms-2 text-muted">({currentVideoAnalysis.suggestedScore}/5)</span>
                         </div>
                       </div>
                       
-                      <div className="mb-3">
-                        <strong>AI Comment:</strong>
-                        <p className="mt-1 mb-0 small text-muted">{currentVideoAnalysis.aiComment}</p>
-                      </div>
-                      
-                      {currentVideoAnalysis.fullEvaluation && (
-                        <div className="mb-3">
-                          <strong>Détails IA:</strong>
-                          <div className="small text-muted mt-1">
-                            <div><strong>Score IA:</strong> {currentVideoAnalysis.fullEvaluation.ai_score}/100</div>
-                            <div><strong>Fournisseur:</strong> {currentVideoAnalysis.fullEvaluation.ai_provider}</div>
-                            <div><strong>Temps de traitement:</strong> {currentVideoAnalysis.fullEvaluation.processing_time}s</div>
-                            {currentVideoAnalysis.fullEvaluation.transcription && (
-                              <div className="mt-2">
-                                <strong>Transcription:</strong>
-                                <div className="bg-light p-2 rounded mt-1" style={{maxHeight: '100px', overflowY: 'auto'}}>
-                                  {currentVideoAnalysis.fullEvaluation.transcription}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
+                      {/* Bouton pour accéder à l'évaluation globale */}
+                      {allQuestionsEvaluated && (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => {
+                            setShowGlobalEvaluation(true);
+                            loadGlobalEvaluation();
+                          }}
+                          className="w-100"
+                        >
+                          <i className="bi bi-clipboard-check me-2"></i>
+                          Procéder à l'Évaluation Globale
+                        </Button>
                       )}
                       
+                      {!allQuestionsEvaluated && (
+                        <Alert variant="info" className="mb-0 mt-2">
+                          <i className="bi bi-info-circle me-2"></i>
+                          Évaluez toutes les questions pour accéder à l'évaluation globale.
+                        </Alert>
+                      )}
+                    </div>
+                  </div>
+                </Card.Body>
+              </Card>
+              
+              {/* Affichage de l'analyse IA de la vidéo courante */}
+              {currentVideoAnalysis && (
+                <Card className="shadow-sm border-0 mb-4">
+                  <Card.Body>
+                    <h6 className="fw-bold text-info mb-3">
+                      <i className="bi bi-robot me-2"></i>
+                      AI Analysis - Question {currentVideoAnalysis.questionIndex + 1}
+                    </h6>
+                    
+                    <Row>
+                      <Col md={6}>
+                        <div className="mb-3">
+                          <strong className="text-success">Strengths:</strong>
+                          <ul className="mt-2 mb-0">
+                            {currentVideoAnalysis.strengths.map((strength, index) => (
+                              <li key={index} className="small">{strength}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </Col>
+                      <Col md={6}>
+                        <div className="mb-3">
+                          <strong className="text-warning">Weaknesses:</strong>
+                          <ul className="mt-2 mb-0">
+                            {currentVideoAnalysis.weaknesses.map((weakness, index) => (
+                              <li key={index} className="small">{weakness}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </Col>
+                    </Row>
+                    
+                    <div className="mb-3">
+                      <strong className="text-info">AI Recommendations:</strong>
+                      <p className="mt-2 mb-0 small">{currentVideoAnalysis.recommendations}</p>
+                    </div>
+                    
+                    <div className="d-flex justify-content-between align-items-center">
+                      <div>
+                        <strong>Suggested Score: </strong>
+                        <span className="badge bg-primary">{currentVideoAnalysis.suggestedScore}/100</span>
+                      </div>
                       <Button 
                         size="sm" 
                         variant="outline-primary"
@@ -1076,71 +1325,303 @@ const InterviewDetails = () => {
                         Apply AI Suggestions
                       </Button>
                     </div>
-                  )}
-                </Card.Body>
-              </Card>
+                  </Card.Body>
+                </Card>
+              )}
 
-              {/* Overall Interview Evaluation */}
+              {/* Bouton pour afficher l'évaluation globale */}
               <Card className="shadow-sm border-0 mb-4">
                 <Card.Body>
-                  <h6 className="fw-bold mb-3">Overall Interview Evaluation</h6>
-                  
-                  <div className="mb-3">
-                    <div className="d-flex justify-content-between align-items-center mb-2">
-                      <span className="small text-muted">Current Overall: {overallScore}/5</span>
-                      <div className="d-flex">
-                        <i className="bi bi-star-fill text-warning me-1"></i>
-                        <span className="fw-bold">{overallScore}</span>
-                      </div>
+                  <div className="d-flex justify-content-between align-items-center">
+                    <div>
+                      <h6 className="fw-bold mb-1">
+                        <i className="bi bi-clipboard-check me-2"></i>
+                        Évaluation Globale de l'Entretien
+                      </h6>
+                      <p className="text-muted small mb-0">
+                        Évaluez la performance globale du candidat sur l'ensemble de l'entretien
+                      </p>
                     </div>
-                    <div className="star-rating d-flex align-items-center mb-2">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <i
-                          key={star}
-                          className={`bi ${star <= overallScore ? 'bi-star-fill' : 'bi-star'} text-warning me-1`}
-                          style={{ fontSize: '1.2rem', cursor: 'pointer' }}
-                          onClick={() => setOverallScore(star)}
-                        ></i>
-                      ))}
-                      <span className="ms-2 text-muted">({overallScore}/5)</span>
-                    </div>
-                  </div>
-                  
-                  <div className="mb-3">
-                    <label className="form-label small text-muted">General Comments</label>
-                    <Form.Control
-                      as="textarea"
-                      rows={4}
-                      placeholder="Overall feedback and recommendations..."
-                      value={overallComments}
-                      onChange={(e) => setOverallComments(e.target.value)}
-                      style={{ resize: 'none', fontSize: '0.9rem' }}
-                    />
-                    <div className="text-end mt-1">
-                      <small className="text-muted">{overallComments.length}/1000</small>
-                    </div>
-                  </div>
-                  
-                  <div className="d-flex gap-2">
                     <Button 
-                      variant="outline-secondary" 
-                      className="flex-fill"
+                      variant={showGlobalEvaluation ? "outline-secondary" : "primary"}
                       onClick={() => {
-                        const updatedAnswers = [...candidateAnswers];
-                        updatedAnswers[currentQuestionIndex] = {
-                          ...updatedAnswers[currentQuestionIndex],
-                          score: overallScore * 20,
-                          recruiter_notes: overallComments
-                        };
-                        setCandidateAnswers(updatedAnswers);
+                        setShowGlobalEvaluation(!showGlobalEvaluation);
+                        if (!showGlobalEvaluation) {
+                          loadGlobalEvaluation();
+                        }
                       }}
                     >
-                      <i className="bi bi-save me-2"></i>
-                      Save
+                      {showGlobalEvaluation ? (
+                        <>
+                          <i className="bi bi-eye-slash me-2"></i>
+                          Masquer l'évaluation
+                        </>
+                      ) : (
+                        <>
+                          <i className="bi bi-clipboard-check me-2"></i>
+                          Évaluer globalement
+                        </>
+                      )}
                     </Button>
                   </div>
                 </Card.Body>
               </Card>
+
+              {/* Section d'évaluation globale */}
+              {showGlobalEvaluation && (
+                <Card className="shadow-sm border-0 mb-4">
+                  <Card.Header className="bg-primary text-white">
+                    <h5 className="mb-0">
+                      <i className="bi bi-clipboard-check me-2"></i>
+                      Évaluation Globale de l'Entretien
+                    </h5>
+                  </Card.Header>
+                  <Card.Body>
+                    {/* Scores détaillés */}
+                    <Row className="mb-4">
+                      <Col md={6}>
+                        <div className="mb-3">
+                          <label className="form-label fw-bold text-secondary">
+                            <i className="bi bi-gear me-2"></i>
+                            Compétences Techniques
+                          </label>
+                          <Form.Range
+                            min="0"
+                            max="100"
+                            value={globalEvaluation.technical_skills}
+                            onChange={(e) => updateGlobalEvaluationField('technical_skills', parseInt(e.target.value))}
+                          />
+                          <div className="d-flex justify-content-between small text-muted">
+                            <span>0</span>
+                            <span className="fw-bold">{globalEvaluation.technical_skills}/100</span>
+                            <span>100</span>
+                          </div>
+                        </div>
+                      </Col>
+                      <Col md={6}>
+                        <div className="mb-3">
+                          <label className="form-label fw-bold text-secondary">
+                            <i className="bi bi-chat-dots me-2"></i>
+                            Compétences de Communication
+                          </label>
+                          <Form.Range
+                            min="0"
+                            max="100"
+                            value={globalEvaluation.communication_skills}
+                            onChange={(e) => updateGlobalEvaluationField('communication_skills', parseInt(e.target.value))}
+                          />
+                          <div className="d-flex justify-content-between small text-muted">
+                            <span>0</span>
+                            <span className="fw-bold">{globalEvaluation.communication_skills}/100</span>
+                            <span>100</span>
+                          </div>
+                        </div>
+                      </Col>
+                    </Row>
+
+                    <Row className="mb-4">
+                      <Col md={6}>
+                        <div className="mb-3">
+                          <label className="form-label fw-bold text-secondary">
+                            <i className="bi bi-lightbulb me-2"></i>
+                            Résolution de Problèmes
+                          </label>
+                          <Form.Range
+                            min="0"
+                            max="100"
+                            value={globalEvaluation.problem_solving}
+                            onChange={(e) => updateGlobalEvaluationField('problem_solving', parseInt(e.target.value))}
+                          />
+                          <div className="d-flex justify-content-between small text-muted">
+                            <span>0</span>
+                            <span className="fw-bold">{globalEvaluation.problem_solving}/100</span>
+                            <span>100</span>
+                          </div>
+                        </div>
+                      </Col>
+                      <Col md={6}>
+                        <div className="mb-3">
+                          <label className="form-label fw-bold text-secondary">
+                            <i className="bi bi-people me-2"></i>
+                            Adéquation Culturelle
+                          </label>
+                          <Form.Range
+                            min="0"
+                            max="100"
+                            value={globalEvaluation.cultural_fit}
+                            onChange={(e) => updateGlobalEvaluationField('cultural_fit', parseInt(e.target.value))}
+                          />
+                          <div className="d-flex justify-content-between small text-muted">
+                            <span>0</span>
+                            <span className="fw-bold">{globalEvaluation.cultural_fit}/100</span>
+                            <span>100</span>
+                          </div>
+                        </div>
+                      </Col>
+                    </Row>
+
+                    <Row className="mb-4">
+                      <Col md={6}>
+                        <div className="mb-3">
+                          <label className="form-label fw-bold text-secondary">
+                            <i className="bi bi-fire me-2"></i>
+                            Motivation
+                          </label>
+                          <Form.Range
+                            min="0"
+                            max="100"
+                            value={globalEvaluation.motivation}
+                            onChange={(e) => updateGlobalEvaluationField('motivation', parseInt(e.target.value))}
+                          />
+                          <div className="d-flex justify-content-between small text-muted">
+                            <span>0</span>
+                            <span className="fw-bold">{globalEvaluation.motivation}/100</span>
+                            <span>100</span>
+                          </div>
+                        </div>
+                      </Col>
+                      <Col md={6}>
+                        <div className="mb-3">
+                          <label className="form-label fw-bold text-secondary">
+                            <i className="bi bi-award me-2"></i>
+                            Recommandation Finale
+                          </label>
+                          <Form.Select
+                            value={globalEvaluation.final_recommendation || ''}
+                            onChange={(e) => updateGlobalEvaluationField('final_recommendation', e.target.value)}
+                          >
+                            <option value="">Sélectionner...</option>
+                            <option value="hire">Embaucher immédiatement</option>
+                            <option value="second_interview">Convoquer pour un 2ème entretien</option>
+                            <option value="consider">À considérer</option>
+                            <option value="reject_politely">Rejeter poliment</option>
+                            <option value="reject">Rejeter définitivement</option>
+                          </Form.Select>
+                        </div>
+                      </Col>
+                    </Row>
+
+                    {/* Score global calculé */}
+                    <div className="mb-4 p-3 bg-light rounded">
+                      <div className="d-flex justify-content-between align-items-center">
+                        <span className="fw-bold">Score Global Calculé:</span>
+                        <div className="d-flex align-items-center">
+                          <span className="badge bg-primary fs-6 me-2">{calculateOverallScore()}/100</span>
+                          <div className="progress" style={{ width: '100px', height: '8px' }}>
+                            <div 
+                              className="progress-bar" 
+                              style={{ width: `${calculateOverallScore()}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Commentaires détaillés */}
+                    <Row className="mb-4">
+                      <Col md={6}>
+                        <div className="mb-3">
+                          <label className="form-label fw-bold text-success">
+                            <i className="bi bi-plus-circle me-2"></i>
+                            Points Forts
+                          </label>
+                          <Form.Control
+                            as="textarea"
+                            rows={3}
+                            value={globalEvaluation.strengths || ''}
+                            onChange={(e) => updateGlobalEvaluationField('strengths', e.target.value)}
+                            placeholder="Décrivez les principales forces du candidat..."
+                            style={{ resize: 'none' }}
+                          />
+                        </div>
+                      </Col>
+                      <Col md={6}>
+                        <div className="mb-3">
+                          <label className="form-label fw-bold text-warning">
+                            <i className="bi bi-exclamation-triangle me-2"></i>
+                            Points d'Amélioration
+                          </label>
+                          <Form.Control
+                            as="textarea"
+                            rows={3}
+                            value={globalEvaluation.weaknesses || ''}
+                            onChange={(e) => updateGlobalEvaluationField('weaknesses', e.target.value)}
+                            placeholder="Identifiez les axes d'amélioration..."
+                            style={{ resize: 'none' }}
+                          />
+                        </div>
+                      </Col>
+                    </Row>
+
+                    <Row className="mb-4">
+                      <Col>
+                        <div className="mb-3">
+                          <label className="form-label fw-bold text-info">
+                            <i className="bi bi-chat-text me-2"></i>
+                            Commentaires Généraux
+                          </label>
+                          <Form.Control
+                            as="textarea"
+                            rows={3}
+                            value={globalEvaluation.general_comments || ''}
+                            onChange={(e) => updateGlobalEvaluationField('general_comments', e.target.value)}
+                            placeholder="Commentaire général sur l'entretien et le candidat..."
+                            style={{ resize: 'none' }}
+                          />
+                        </div>
+                      </Col>
+                    </Row>
+
+                    <Row className="mb-4">
+                      <Col>
+                        <div className="mb-3">
+                          <label className="form-label fw-bold text-secondary">
+                            <i className="bi bi-arrow-right-circle me-2"></i>
+                            Prochaines Étapes
+                          </label>
+                          <Form.Control
+                            as="textarea"
+                            rows={2}
+                            value={globalEvaluation.next_steps || ''}
+                            onChange={(e) => updateGlobalEvaluationField('next_steps', e.target.value)}
+                            placeholder="Définissez les prochaines étapes du processus de recrutement..."
+                            style={{ resize: 'none' }}
+                          />
+                        </div>
+                      </Col>
+                    </Row>
+
+                    {/* Boutons d'action */}
+                    <div className="d-grid gap-2">
+                      <Button 
+                        variant="success"
+                        size="lg"
+                        onClick={saveGlobalEvaluation}
+                        disabled={savingGlobalEvaluation}
+                      >
+                        {savingGlobalEvaluation ? (
+                          <>
+                            <Spinner size="sm" className="me-2" />
+                            Sauvegarde en cours...
+                          </>
+                        ) : (
+                          <>
+                            <i className="bi bi-check-circle me-2"></i>
+                            Sauvegarder l'Évaluation Globale
+                          </>
+                        )}
+                      </Button>
+                      {globalEvaluationSaved && (
+                        <Alert variant="success" className="mb-0 mt-2">
+                          <i className="bi bi-check-circle me-2"></i>
+                          Évaluation globale sauvegardée avec succès!
+                        </Alert>
+                      )}
+                    </div>
+                  </Card.Body>
+                </Card>
+              )}
+
             </>
           ) : null}
 
@@ -1292,34 +1773,168 @@ const InterviewDetails = () => {
                         </Col>
                       </Row>
                       
-                      {/* Scores détaillés par compétence */}
+                      {/* Scores détaillés par dimension IA */}
                       <div className="mt-4">
                         <h6 className="fw-bold mb-3 d-flex align-items-center">
                           <i className="bi bi-bar-chart text-primary me-2"></i>
-                          Évaluation par compétences
+                          Analyse détaillée par dimension
                         </h6>
+                        
+                        {/* Affichage des évaluations détaillées pour chaque vidéo */}
+                        {aiAnalysis.aiEvaluations && aiAnalysis.aiEvaluations.length > 0 && (
+                          <div className="mb-4">
+                            {aiAnalysis.aiEvaluations.map((evaluation, index) => (
+                              <Card key={index} className="mb-3 border-0 shadow-sm">
+                                <Card.Header className="bg-light border-0">
+                                  <h6 className="mb-0 fw-bold text-primary">
+                                    <i className="bi bi-camera-video me-2"></i>
+                                    Question {index + 1}: {evaluation.questionText?.substring(0, 60)}...
+                                  </h6>
+                                </Card.Header>
+                                <Card.Body>
+                                  {evaluation.error ? (
+                                    <div className="text-center py-3">
+                                      <i className="bi bi-exclamation-triangle text-warning mb-2" style={{fontSize: '1.5rem'}}></i>
+                                      <p className="text-muted mb-0">{evaluation.ai_feedback}</p>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      {/* Score global pour cette question */}
+                                      <div className="text-center mb-4">
+                                        <div className="d-inline-flex align-items-center justify-content-center rounded-circle bg-primary bg-opacity-10" style={{ width: '80px', height: '80px' }}>
+                                          <div className="text-center">
+                                            <div className="h4 fw-bold text-primary mb-0">{evaluation.ai_score?.toFixed(0) || 'N/A'}</div>
+                                            <small className="text-muted">Score</small>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {/* Scores détaillés par dimension */}
+                                      <Row className="g-3 mb-4">
+                                        <Col md={6}>
+                                          <div className="p-3 bg-success bg-opacity-5 rounded-3 border border-success border-opacity-25">
+                                            <div className="d-flex justify-content-between align-items-center mb-2">
+                                              <span className="fw-medium text-success">
+                                                <i className="bi bi-chat-dots me-2"></i>Communication
+                                              </span>
+                                              <span className="badge bg-success">{evaluation.communication_score?.toFixed(0) || 'N/A'}/100</span>
+                                            </div>
+                                            <div className="progress mb-2" style={{ height: '6px' }}>
+                                              <div className="progress-bar bg-success" style={{ 
+                                                width: `${evaluation.communication_score || 0}%`
+                                              }}></div>
+                                            </div>
+                                            <small className="text-muted">{evaluation.communication_feedback || 'Analyse non disponible'}</small>
+                                          </div>
+                                        </Col>
+                                        <Col md={6}>
+                                          <div className="p-3 bg-info bg-opacity-5 rounded-3 border border-info border-opacity-25">
+                                            <div className="d-flex justify-content-between align-items-center mb-2">
+                                              <span className="fw-medium text-info">
+                                                <i className="bi bi-shield-check me-2"></i>Confiance
+                                              </span>
+                                              <span className="badge bg-info">{evaluation.confidence_score?.toFixed(0) || 'N/A'}/100</span>
+                                            </div>
+                                            <div className="progress mb-2" style={{ height: '6px' }}>
+                                              <div className="progress-bar bg-info" style={{ 
+                                                width: `${evaluation.confidence_score || 0}%`
+                                              }}></div>
+                                            </div>
+                                            <small className="text-muted">{evaluation.confidence_feedback || 'Analyse non disponible'}</small>
+                                          </div>
+                                        </Col>
+                                        <Col md={6}>
+                                          <div className="p-3 bg-warning bg-opacity-5 rounded-3 border border-warning border-opacity-25">
+                                            <div className="d-flex justify-content-between align-items-center mb-2">
+                                              <span className="fw-medium text-warning">
+                                                <i className="bi bi-bullseye me-2"></i>Pertinence
+                                              </span>
+                                              <span className="badge bg-warning">{evaluation.relevance_score?.toFixed(0) || 'N/A'}/100</span>
+                                            </div>
+                                            <div className="progress mb-2" style={{ height: '6px' }}>
+                                              <div className="progress-bar bg-warning" style={{ 
+                                                width: `${evaluation.relevance_score || 0}%`
+                                              }}></div>
+                                            </div>
+                                            <small className="text-muted">{evaluation.relevance_feedback || 'Analyse non disponible'}</small>
+                                          </div>
+                                        </Col>
+                                        <Col md={6}>
+                                          <div className="p-3 bg-primary bg-opacity-5 rounded-3 border border-primary border-opacity-25">
+                                            <div className="d-flex justify-content-between align-items-center mb-2">
+                                              <span className="fw-medium text-primary">
+                                                <i className="bi bi-gear me-2"></i>Compétences Tech.
+                                              </span>
+                                              <span className="badge bg-primary">
+                                                {evaluation.technical_scores && Object.keys(evaluation.technical_scores).length > 0 
+                                                  ? Object.values(evaluation.technical_scores).reduce((acc, skill) => acc + skill.score, 0) / Object.keys(evaluation.technical_scores).length
+                                                  : 'N/A'}/100
+                                              </span>
+                                            </div>
+                                            <div className="progress mb-2" style={{ height: '6px' }}>
+                                              <div className="progress-bar bg-primary" style={{ 
+                                                width: `${evaluation.technical_scores && Object.keys(evaluation.technical_scores).length > 0 
+                                                  ? Object.values(evaluation.technical_scores).reduce((acc, skill) => acc + skill.score, 0) / Object.keys(evaluation.technical_scores).length
+                                                  : 0}%`
+                                              }}></div>
+                                            </div>
+                                            {evaluation.technical_scores && Object.keys(evaluation.technical_scores).length > 0 ? (
+                                              <div>
+                                                {Object.entries(evaluation.technical_scores).map(([skill, data], skillIndex) => (
+                                                  <div key={skillIndex} className="mb-1">
+                                                    <small className="text-muted">
+                                                      <strong>{skill}:</strong> {data.score?.toFixed(0)}/100 - {data.feedback}
+                                                    </small>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            ) : (
+                                              <small className="text-muted">Compétences techniques évaluées globalement</small>
+                                            )}
+                                          </div>
+                                        </Col>
+                                      </Row>
+
+                                      {/* Feedback global pour cette question */}
+                                      {evaluation.ai_feedback && (
+                                        <div className="bg-light p-3 rounded-3">
+                                          <h6 className="fw-bold mb-2 text-primary">
+                                            <i className="bi bi-chat-square-text me-2"></i>Feedback IA
+                                          </h6>
+                                          <p className="mb-0 text-dark">{evaluation.ai_feedback}</p>
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                </Card.Body>
+                              </Card>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Scores moyens globaux */}
                         <Row className="g-3">
                           <Col md={6}>
                             <div className="mb-3">
                               <div className="d-flex justify-content-between align-items-center mb-1">
-                                <span className="fw-medium">🗣️ Communication</span>
-                                <span className="badge bg-success">{aiAnalysis.statistics.averageScores.communication.toFixed(0)}/100</span>
+                                <span className="fw-medium">🗣️ Communication (Moyenne)</span>
+                                <span className="badge bg-success">{aiAnalysis.statistics?.averageScores?.communication?.toFixed(0) || 'N/A'}/100</span>
                               </div>
                               <div className="progress" style={{ height: '8px' }}>
                                 <div className="progress-bar bg-gradient" style={{ 
-                                  width: `${aiAnalysis.statistics.averageScores.communication}%`,
+                                  width: `${aiAnalysis.statistics?.averageScores?.communication || 0}%`,
                                   background: 'linear-gradient(90deg, #28a745, #20c997)'
                                 }}></div>
                               </div>
                             </div>
                             <div className="mb-3">
                               <div className="d-flex justify-content-between align-items-center mb-1">
-                                <span className="fw-medium">💡 Motivation</span>
-                                <span className="badge bg-info">{aiAnalysis.statistics.averageScores.motivation.toFixed(0)}/100</span>
+                                <span className="fw-medium">💡 Motivation (Moyenne)</span>
+                                <span className="badge bg-info">{aiAnalysis.statistics?.averageScores?.motivation?.toFixed(0) || 'N/A'}/100</span>
                               </div>
                               <div className="progress" style={{ height: '8px' }}>
                                 <div className="progress-bar bg-gradient" style={{ 
-                                  width: `${aiAnalysis.statistics.averageScores.motivation}%`,
+                                  width: `${aiAnalysis.statistics?.averageScores?.motivation || 0}%`,
                                   background: 'linear-gradient(90deg, #17a2b8, #6f42c1)'
                                 }}></div>
                               </div>
@@ -1328,12 +1943,12 @@ const InterviewDetails = () => {
                           <Col md={6}>
                             <div className="mb-3">
                               <div className="d-flex justify-content-between align-items-center mb-1">
-                                <span className="fw-medium">⚙️ Technique</span>
-                                <span className="badge bg-warning">{aiAnalysis.statistics.averageScores.technical.toFixed(0)}/100</span>
+                                <span className="fw-medium">⚙️ Technique (Moyenne)</span>
+                                <span className="badge bg-warning">{aiAnalysis.statistics?.averageScores?.technical?.toFixed(0) || 'N/A'}/100</span>
                               </div>
                               <div className="progress" style={{ height: '8px' }}>
                                 <div className="progress-bar bg-gradient" style={{ 
-                                  width: `${aiAnalysis.statistics.averageScores.technical}%`,
+                                  width: `${aiAnalysis.statistics?.averageScores?.technical || 0}%`,
                                   background: 'linear-gradient(90deg, #ffc107, #fd7e14)'
                                 }}></div>
                               </div>
@@ -1341,11 +1956,11 @@ const InterviewDetails = () => {
                             <div className="mb-3">
                               <div className="d-flex justify-content-between align-items-center mb-1">
                                 <span className="fw-medium">🎯 Score Global</span>
-                                <span className="badge bg-primary">{aiAnalysis.statistics.averageScores.global.toFixed(0)}/100</span>
+                                <span className="badge bg-primary">{aiAnalysis.statistics?.averageScores?.global?.toFixed(0) || 'N/A'}/100</span>
                               </div>
                               <div className="progress" style={{ height: '8px' }}>
                                 <div className="progress-bar bg-gradient" style={{ 
-                                  width: `${aiAnalysis.statistics.averageScores.global}%`,
+                                  width: `${aiAnalysis.statistics?.averageScores?.global || 0}%`,
                                   background: 'linear-gradient(90deg, #007bff, #6f42c1)'
                                 }}></div>
                               </div>

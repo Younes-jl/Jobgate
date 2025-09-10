@@ -464,18 +464,65 @@ class AiEvaluation(models.Model):
         null=True
     )
     
-    # Évaluation IA
+    # Évaluation IA globale
     ai_score = models.FloatField(
-        verbose_name="Score IA",
-        help_text="Score généré par l'IA (0-100)",
+        verbose_name="Score IA global",
+        help_text="Score global généré par l'IA (0-100)",
         null=True,
         blank=True
     )
     ai_feedback = models.TextField(
-        verbose_name="Feedback IA",
+        verbose_name="Feedback IA global",
         help_text="Commentaires détaillés générés par l'IA",
         blank=True,
         null=True
+    )
+    
+    # Scores détaillés par dimension
+    communication_score = models.FloatField(
+        verbose_name="Score Communication",
+        help_text="Score de communication (0-100): clarté, fluidité, structure",
+        null=True,
+        blank=True
+    )
+    communication_feedback = models.TextField(
+        verbose_name="Feedback Communication",
+        help_text="Commentaires sur la communication",
+        blank=True,
+        null=True
+    )
+    
+    confidence_score = models.FloatField(
+        verbose_name="Score Confiance",
+        help_text="Score de confiance/assurance (0-100): ton affirmatif, peu d'hésitation",
+        null=True,
+        blank=True
+    )
+    confidence_feedback = models.TextField(
+        verbose_name="Feedback Confiance",
+        help_text="Commentaires sur la confiance et l'assurance",
+        blank=True,
+        null=True
+    )
+    
+    relevance_score = models.FloatField(
+        verbose_name="Score Pertinence",
+        help_text="Score de pertinence (0-100): réponse alignée avec la question",
+        null=True,
+        blank=True
+    )
+    relevance_feedback = models.TextField(
+        verbose_name="Feedback Pertinence",
+        help_text="Commentaires sur la pertinence de la réponse",
+        blank=True,
+        null=True
+    )
+    
+    # Scores techniques par compétence (JSON)
+    technical_scores = models.JSONField(
+        default=dict,
+        verbose_name="Scores techniques",
+        help_text="Scores par compétence technique {compétence: {score: float, feedback: str}}"
     )
     
     # Métadonnées du traitement
@@ -560,6 +607,324 @@ class AiEvaluation(models.Model):
             return "Passable"
         else:
             return "Insuffisant"
+
+class RecruiterEvaluation(models.Model):
+    """
+    Modèle représentant l'évaluation d'un recruteur sur une réponse vidéo d'entretien.
+    Permet au recruteur d'évaluer la communication, confiance et pertinence avec scores et commentaires.
+    """
+    # Relations
+    interview_answer = models.ForeignKey(
+        InterviewAnswer,
+        on_delete=models.CASCADE,
+        related_name="recruiter_evaluations",
+        verbose_name="Réponse d'entretien"
+    )
+    recruiter = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name="recruiter_evaluations",
+        verbose_name="Recruteur évaluateur"
+    )
+    candidate = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name="received_evaluations",
+        verbose_name="Candidat évalué",
+        help_text="Candidat qui passe l'entretien"
+    )
+    
+    # Évaluation Communication
+    communication_score = models.FloatField(
+        verbose_name="Score Communication (0-100)",
+        help_text="Clarté, fluidité, structure de la réponse",
+        null=True,
+        blank=True
+    )
+    communication_feedback = models.TextField(
+        verbose_name="Commentaire Communication",
+        help_text="Ex: 'Réponse claire, mais manque de concision'",
+        blank=True,
+        null=True
+    )
+    
+    # Évaluation Confiance/Assurance
+    confidence_score = models.FloatField(
+        verbose_name="Score Confiance (0-100)",
+        help_text="Ton affirmatif, peu d'hésitation",
+        null=True,
+        blank=True
+    )
+    confidence_feedback = models.TextField(
+        verbose_name="Commentaire Confiance",
+        help_text="Ex: 'Ton confiant, mais quelques hésitations'",
+        blank=True,
+        null=True
+    )
+    
+    # Évaluation Pertinence
+    relevance_score = models.FloatField(
+        verbose_name="Score Pertinence (0-100)",
+        help_text="Réponse alignée avec la question posée",
+        null=True,
+        blank=True
+    )
+    relevance_feedback = models.TextField(
+        verbose_name="Commentaire Pertinence",
+        help_text="Ex: 'Réponse bien ciblée, couvre 80% du sujet'",
+        blank=True,
+        null=True
+    )
+    
+    # Score global et commentaire général
+    overall_score = models.FloatField(
+        verbose_name="Score Global (0-100)",
+        help_text="Score global calculé ou saisi par le recruteur",
+        null=True,
+        blank=True
+    )
+    overall_feedback = models.TextField(
+        verbose_name="Commentaire Global",
+        help_text="Commentaire général du recruteur sur la réponse",
+        blank=True,
+        null=True
+    )
+    
+    # Score global de l'entretien (remplace GlobalInterviewEvaluation)
+    global_score = models.FloatField(
+        verbose_name="Score Global Entretien (0-100)",
+        help_text="Score global pour l'ensemble de l'entretien du candidat",
+        null=True,
+        blank=True
+    )
+    
+    # Recommandation du recruteur
+    RECOMMENDATION_CHOICES = [
+        ('excellent', 'Excellent candidat'),
+        ('good', 'Bon candidat'),
+        ('average', 'Candidat moyen'),
+        ('below_average', 'En dessous de la moyenne'),
+        ('poor', 'Candidat faible'),
+    ]
+    recommendation = models.CharField(
+        max_length=20,
+        choices=RECOMMENDATION_CHOICES,
+        verbose_name="Recommandation",
+        null=True,
+        blank=True
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Date de création")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Dernière mise à jour")
+    
+    class Meta:
+        verbose_name = "Évaluation Recruteur"
+        verbose_name_plural = "Évaluations Recruteur"
+        ordering = ['-created_at']
+        unique_together = ('interview_answer', 'recruiter')
+    
+    def __str__(self):
+        return f"Évaluation de {self.recruiter.username} - {self.interview_answer.candidate.username} - {self.interview_answer.question.campaign.title}"
+    
+    @property
+    def question(self):
+        """Accès rapide à la question via la réponse d'entretien"""
+        return self.interview_answer.question
+    
+    @property
+    def campaign(self):
+        """Accès rapide à la campagne via la réponse d'entretien"""
+        return self.interview_answer.question.campaign
+    
+    def calculate_overall_score(self):
+        """Calcule le score global basé sur les scores individuels"""
+        scores = []
+        if self.communication_score is not None:
+            scores.append(self.communication_score)
+        if self.confidence_score is not None:
+            scores.append(self.confidence_score)
+        if self.relevance_score is not None:
+            scores.append(self.relevance_score)
+        
+        if scores:
+            return sum(scores) / len(scores)
+        return None
+    
+    def get_overall_score_display(self):
+        """Retourne le score global formaté"""
+        score = self.overall_score or self.calculate_overall_score()
+        if score is not None:
+            return f"{score:.1f}/100"
+        return "Non évalué"
+    
+    def get_recommendation_display_color(self):
+        """Retourne la couleur associée à la recommandation pour l'UI"""
+        colors = {
+            'excellent': 'success',
+            'good': 'info', 
+            'average': 'warning',
+            'below_average': 'secondary',
+            'poor': 'danger',
+        }
+        return colors.get(self.recommendation, 'secondary')
+    
+    def save(self, *args, **kwargs):
+        """Auto-calcul du score global si non défini"""
+        if self.overall_score is None:
+            calculated_score = self.calculate_overall_score()
+            if calculated_score is not None:
+                self.overall_score = calculated_score
+        super().save(*args, **kwargs)
+
+
+class GlobalInterviewEvaluation(models.Model):
+    """
+    Modèle pour l'évaluation globale de l'entretien après évaluation de toutes les questions.
+    """
+    # Relations
+    job_application = models.OneToOneField(
+        'JobApplication',
+        on_delete=models.CASCADE,
+        related_name="global_evaluation",
+        verbose_name="Candidature"
+    )
+    recruiter = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name="global_evaluations",
+        verbose_name="Recruteur évaluateur"
+    )
+    candidate = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name="received_global_evaluations",
+        verbose_name="Candidat évalué"
+    )
+    
+    # Scores par compétences (0-100)
+    technical_skills = models.FloatField(
+        verbose_name="Compétences Techniques",
+        help_text="Maîtrise technique et expertise métier",
+        null=True,
+        blank=True
+    )
+    communication_skills = models.FloatField(
+        verbose_name="Compétences Communication",
+        help_text="Clarté, écoute, expression",
+        null=True,
+        blank=True
+    )
+    problem_solving = models.FloatField(
+        verbose_name="Résolution de Problèmes",
+        help_text="Analyse, créativité, logique",
+        null=True,
+        blank=True
+    )
+    cultural_fit = models.FloatField(
+        verbose_name="Adéquation Culturelle",
+        help_text="Alignement avec les valeurs de l'entreprise",
+        null=True,
+        blank=True
+    )
+    motivation = models.FloatField(
+        verbose_name="Motivation",
+        help_text="Intérêt pour le poste et l'entreprise",
+        null=True,
+        blank=True
+    )
+    
+    # Recommandation finale
+    RECOMMENDATION_CHOICES = [
+        ('hire_immediately', 'Embaucher immédiatement'),
+        ('second_interview', 'Deuxième entretien'),
+        ('consider', 'À considérer'),
+        ('reject_politely', 'Refuser poliment'),
+        ('reject_definitively', 'Refuser définitivement'),
+    ]
+    final_recommendation = models.CharField(
+        max_length=30,
+        choices=RECOMMENDATION_CHOICES,
+        verbose_name="Recommandation finale",
+        null=True,
+        blank=True
+    )
+    
+    # Commentaires détaillés
+    strengths = models.TextField(
+        verbose_name="Points forts",
+        help_text="Points positifs identifiés",
+        blank=True,
+        null=True
+    )
+    weaknesses = models.TextField(
+        verbose_name="Points faibles",
+        help_text="Axes d'amélioration identifiés",
+        blank=True,
+        null=True
+    )
+    general_comments = models.TextField(
+        verbose_name="Commentaires généraux",
+        help_text="Impression générale et observations",
+        blank=True,
+        null=True
+    )
+    next_steps = models.TextField(
+        verbose_name="Prochaines étapes",
+        help_text="Actions recommandées",
+        blank=True,
+        null=True
+    )
+    
+    # Score global calculé
+    overall_score = models.FloatField(
+        verbose_name="Score Global",
+        help_text="Score global calculé automatiquement",
+        null=True,
+        blank=True
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Date de création")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Dernière mise à jour")
+    
+    class Meta:
+        verbose_name = "Évaluation Globale d'Entretien"
+        verbose_name_plural = "Évaluations Globales d'Entretien"
+        ordering = ['-created_at']
+        unique_together = ('job_application', 'recruiter')
+    
+    def __str__(self):
+        return f"Évaluation globale - {self.candidate.username} - {self.job_application.job_offer.title}"
+    
+    def calculate_overall_score(self):
+        """Calcule le score global basé sur les 5 dimensions"""
+        scores = []
+        if self.technical_skills is not None:
+            scores.append(self.technical_skills)
+        if self.communication_skills is not None:
+            scores.append(self.communication_skills)
+        if self.problem_solving is not None:
+            scores.append(self.problem_solving)
+        if self.cultural_fit is not None:
+            scores.append(self.cultural_fit)
+        if self.motivation is not None:
+            scores.append(self.motivation)
+        
+        if scores:
+            return sum(scores) / len(scores)
+        return None
+    
+    def save(self, *args, **kwargs):
+        """Auto-calcul du score global"""
+        if self.overall_score is None:
+            calculated_score = self.calculate_overall_score()
+            if calculated_score is not None:
+                self.overall_score = calculated_score
+        super().save(*args, **kwargs)
+
+
+
 
 # Import du modèle Notification
 from .notification_models import Notification

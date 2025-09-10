@@ -1,6 +1,9 @@
 from django.contrib import admin
-from .models import JobOffer, InterviewCampaign, InterviewQuestion, CampaignLink, InterviewAnswer, JobApplication, AiEvaluation
-
+from .models import (
+    JobOffer, InterviewCampaign, InterviewQuestion, CampaignLink, 
+    InterviewAnswer, JobApplication, AiEvaluation, RecruiterEvaluation,
+    GlobalInterviewEvaluation
+)
 class InterviewQuestionInline(admin.TabularInline):
     model = InterviewQuestion
     extra = 1
@@ -213,3 +216,190 @@ class AiEvaluationAdmin(admin.ModelAdmin):
         updated = queryset.update(status='completed')
         self.message_user(request, f'{updated} évaluation(s) marquée(s) comme terminée(s).')
     mark_as_completed.short_description = "Marquer comme terminé"
+
+
+@admin.register(RecruiterEvaluation)
+class RecruiterEvaluationAdmin(admin.ModelAdmin):
+    list_display = (
+        'interview_answer_info', 'recruiter', 'overall_score', 'recommendation', 
+        'communication_score', 'confidence_score', 'relevance_score', 'created_at'
+    )
+    list_filter = ('recommendation', 'recruiter', 'created_at', 'overall_score')
+    search_fields = (
+        'interview_answer__candidate__username',
+        'interview_answer__candidate__email',
+        'interview_answer__question__text',
+        'recruiter__username',
+        'overall_feedback'
+    )
+    readonly_fields = ('created_at', 'updated_at')
+    
+    fieldsets = (
+        ('Informations principales', {
+            'fields': ('interview_answer', 'recruiter')
+        }),
+        ('Scores détaillés', {
+            'fields': (
+                ('communication_score', 'communication_feedback'),
+                ('confidence_score', 'confidence_feedback'),
+                ('relevance_score', 'relevance_feedback')
+            )
+        }),
+        ('Évaluation globale', {
+            'fields': ('overall_score', 'recommendation', 'overall_feedback')
+        }),
+        ('Métadonnées', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def get_queryset(self, request):
+        """Optimiser les requêtes avec select_related"""
+        return super().get_queryset(request).select_related(
+            'interview_answer__candidate',
+            'interview_answer__question__campaign',
+            'recruiter'
+        )
+    
+    def interview_answer_info(self, obj):
+        """Informations sur la réponse d'entretien"""
+        candidate = obj.interview_answer.candidate.username
+        question_text = obj.interview_answer.question.text[:30]
+        return f"{candidate} - {question_text}{'...' if len(obj.interview_answer.question.text) > 30 else ''}"
+    interview_answer_info.short_description = "Réponse évaluée"
+    
+    def get_recommendation_display(self, obj):
+        """Affichage coloré de la recommandation"""
+        if obj.recommendation:
+            color = obj.get_recommendation_display_color()
+            return f'<span style="color: {color}; font-weight: bold;">{obj.get_recommendation_display()}</span>'
+        return "-"
+    get_recommendation_display.allow_tags = True
+    get_recommendation_display.short_description = "Recommandation"
+    
+    # Actions personnalisées
+    actions = ['export_evaluations', 'mark_for_review']
+    
+    def export_evaluations(self, request, queryset):
+        """Exporter les évaluations sélectionnées"""
+        # Ici vous pourriez ajouter une logique d'export CSV/Excel
+        count = queryset.count()
+        self.message_user(request, f'{count} évaluation(s) prête(s) pour export.')
+    export_evaluations.short_description = "Exporter les évaluations"
+    
+    def mark_for_review(self, request, queryset):
+        """Marquer pour révision"""
+        # Logique pour marquer les évaluations pour révision
+        count = queryset.count()
+        self.message_user(request, f'{count} évaluation(s) marquée(s) pour révision.')
+    mark_for_review.short_description = "Marquer pour révision"
+
+
+@admin.register(GlobalInterviewEvaluation)
+class GlobalInterviewEvaluationAdmin(admin.ModelAdmin):
+    list_display = (
+        'job_application_info', 'recruiter', 'final_recommendation', 'overall_score',
+        'technical_skills', 'communication_skills', 'problem_solving', 'created_at'
+    )
+    list_filter = ('final_recommendation', 'recruiter', 'created_at', 'overall_score')
+    search_fields = (
+        'job_application__candidate__username',
+        'job_application__candidate__email',
+        'job_application__job_offer__title',
+        'recruiter__username',
+        'strengths', 'weaknesses', 'general_comments'
+    )
+    readonly_fields = ('created_at', 'updated_at', 'overall_score')
+    
+    fieldsets = (
+        ('Informations principales', {
+            'fields': ('job_application', 'recruiter')
+        }),
+        ('Scores par compétences (0-100)', {
+            'fields': (
+                ('technical_skills', 'communication_skills'),
+                ('problem_solving', 'cultural_fit', 'motivation')
+            )
+        }),
+        ('Évaluation globale', {
+            'fields': ('overall_score', 'final_recommendation')
+        }),
+        ('Commentaires détaillés', {
+            'fields': ('strengths', 'weaknesses', 'general_comments', 'next_steps')
+        }),
+        ('Métadonnées', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def get_queryset(self, request):
+        """Optimiser les requêtes avec select_related"""
+        return super().get_queryset(request).select_related(
+            'job_application__candidate',
+            'job_application__job_offer',
+            'recruiter'
+        )
+    
+    def job_application_info(self, obj):
+        """Informations sur la candidature"""
+        candidate = obj.job_application.candidate.username
+        job_title = obj.job_application.job_offer.title
+        return f"{candidate} - {job_title[:30]}{'...' if len(job_title) > 30 else ''}"
+    job_application_info.short_description = "Candidature"
+    
+    def get_recommendation_color(self, obj):
+        """Couleur selon la recommandation"""
+        colors = {
+            'hire_immediately': '#28a745',  # Vert
+            'second_interview': '#17a2b8',  # Bleu
+            'consider': '#ffc107',          # Jaune
+            'reject_politely': '#fd7e14',   # Orange
+            'reject_definitively': '#dc3545' # Rouge
+        }
+        return colors.get(obj.final_recommendation, '#6c757d')
+    
+    def colored_recommendation(self, obj):
+        """Affichage coloré de la recommandation"""
+        if obj.final_recommendation:
+            color = self.get_recommendation_color(obj)
+            return f'<span style="color: {color}; font-weight: bold;">{obj.get_final_recommendation_display()}</span>'
+        return "-"
+    colored_recommendation.allow_tags = True
+    colored_recommendation.short_description = "Recommandation"
+    
+    def score_summary(self, obj):
+        """Résumé des scores"""
+        scores = [
+            obj.technical_skills or 0,
+            obj.communication_skills or 0,
+            obj.problem_solving or 0,
+            obj.cultural_fit or 0,
+            obj.motivation or 0
+        ]
+        avg_score = sum(scores) / len(scores) if scores else 0
+        return f"{avg_score:.1f}/100"
+    score_summary.short_description = "Score moyen"
+    
+    # Actions personnalisées
+    actions = ['export_global_evaluations', 'send_feedback_to_candidates', 'mark_for_final_review']
+    
+    def export_global_evaluations(self, request, queryset):
+        """Exporter les évaluations globales"""
+        count = queryset.count()
+        self.message_user(request, f'{count} évaluation(s) globale(s) prête(s) pour export.')
+    export_global_evaluations.short_description = "Exporter les évaluations globales"
+    
+    def send_feedback_to_candidates(self, request, queryset):
+        """Envoyer le feedback aux candidats"""
+        count = queryset.count()
+        self.message_user(request, f'Feedback envoyé à {count} candidat(s).')
+    send_feedback_to_candidates.short_description = "Envoyer feedback aux candidats"
+    
+    def mark_for_final_review(self, request, queryset):
+        """Marquer pour révision finale"""
+        count = queryset.count()
+        self.message_user(request, f'{count} évaluation(s) marquée(s) pour révision finale.')
+    mark_for_final_review.short_description = "Marquer pour révision finale"
+

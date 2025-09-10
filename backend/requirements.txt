@@ -26,7 +26,8 @@ sqlparse==0.5.3
 tzdata==2025.2
 urllib3==2.5.0
 google-generativeai==0.3.2
-# AI Video Evaluation Dependencies
+# AI Video Evaluation Dependencies - Fixed NumPy compatibility
+numpy<2.0.0
 openai-whisper==20231117
 torch==2.1.0
 transformers==4.35.0

@@ -14,8 +14,16 @@ from users.models import CustomUser
 from django.utils import timezone
 from django.http import JsonResponse
 from django.db.models import Q
-from .models import JobOffer, InterviewCampaign, CampaignLink, InterviewQuestion, InterviewAnswer, JobApplication, AiEvaluation
-from .serializers import JobOfferSerializer, InterviewCampaignSerializer, InterviewCampaignCreateSerializer, CampaignLinkSerializer, InterviewQuestionSerializer, InterviewAnswerSerializer, JobApplicationSerializer, AiEvaluationSerializer, EvaluateVideoRequestSerializer, EvaluateVideoResponseSerializer
+from .models import (
+    JobOffer, InterviewCampaign, InterviewQuestion, CampaignLink, 
+    InterviewAnswer, JobApplication, AiEvaluation, RecruiterEvaluation, GlobalInterviewEvaluation
+)
+from .serializers import (
+    JobOfferSerializer, InterviewCampaignSerializer, InterviewCampaignCreateSerializer,
+    InterviewQuestionSerializer, CampaignLinkSerializer, InterviewAnswerSerializer,
+    JobApplicationSerializer, AiEvaluationSerializer, RecruiterEvaluationSerializer, 
+    EvaluateVideoResponseSerializer, GlobalInterviewEvaluationSerializer
+)
 from .ai_service import AIInterviewQuestionGenerator, analyze_question_quality
 from django.core.mail import send_mail
 from .cloudinary_service import CloudinaryVideoService
@@ -1148,13 +1156,20 @@ class AIQuestionGeneratorView(APIView):
         behavioral_count = request.data.get('behavioral_count')
         technical_count = request.data.get('technical_count')
 
+        # Récupérer les questions statiques existantes de la campagne
+        existing_questions_count = request.data.get('existing_questions_count', 0)
+
+        # Calculer le nombre de questions IA à générer
+        # Si on veut 5 questions au total et qu'il y en a déjà 1 statique, générer seulement 4
+        ai_questions_needed = max(0, question_count - existing_questions_count)
+
         try:
             # Appel au service IA pour générer les questions (uniquement dynamique)
             ai_generator = AIInterviewQuestionGenerator()
             questions = ai_generator.generate_questions(
                 offer_title=job_title,
                 offer_description=job_description,
-                number_of_questions=question_count,
+                number_of_questions=ai_questions_needed,
                 difficulty=difficulty_level,
                 requirements=requirements,
                 behavioral_count=behavioral_count,
@@ -1588,3 +1603,487 @@ class AiEvaluationViewSet(ModelViewSet):
             return Response({
                 'error': 'Candidat introuvable'
             }, status=status.HTTP_404_NOT_FOUND)
+
+
+class RecruiterEvaluationViewSet(ModelViewSet):
+    """
+    ViewSet pour les évaluations des recruteurs sur les réponses vidéo.
+    Permet aux recruteurs d'évaluer les candidats avec scores détaillés.
+    """
+    serializer_class = RecruiterEvaluationSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        """Filtre les évaluations selon le rôle de l'utilisateur"""
+        user = self.request.user
+        
+        if user.role == 'RECRUTEUR':
+            # Les recruteurs ne voient que leurs propres évaluations
+            return RecruiterEvaluation.objects.filter(
+                recruiter=user
+            ).select_related(
+                'interview_answer__candidate',
+                'interview_answer__question__campaign__job_offer',
+                'recruiter'
+            ).order_by('-created_at')
+        
+        elif user.role == 'CANDIDAT':
+            # Les candidats voient les évaluations de leurs réponses
+            return RecruiterEvaluation.objects.filter(
+                interview_answer__candidate=user
+            ).select_related(
+                'interview_answer__candidate',
+                'interview_answer__question__campaign__job_offer',
+                'recruiter'
+            ).order_by('-created_at')
+        
+        else:
+            # Admins voient tout
+            return RecruiterEvaluation.objects.all().select_related(
+                'interview_answer__candidate',
+                'interview_answer__question__campaign__job_offer',
+                'recruiter'
+            ).order_by('-created_at')
+    
+    def perform_create(self, serializer):
+        """Assigne automatiquement le recruteur connecté"""
+        serializer.save(recruiter=self.request.user)
+    
+    @action(detail=False, methods=['get'])
+    def by_campaign(self, request):
+        """Récupère toutes les évaluations pour une campagne donnée"""
+        campaign_id = request.query_params.get('campaign_id')
+        
+        if not campaign_id:
+            return Response({
+                'error': 'campaign_id est requis'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            campaign = InterviewCampaign.objects.get(id=campaign_id)
+            
+            # Vérifier que le recruteur a accès à cette campagne
+            if request.user.role == 'RECRUTEUR' and campaign.job_offer.recruiter != request.user:
+                return Response({
+                    'error': 'Accès non autorisé à cette campagne'
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            # Récupérer toutes les évaluations pour cette campagne
+            evaluations = RecruiterEvaluation.objects.filter(
+                interview_answer__question__campaign=campaign
+            ).select_related(
+                'interview_answer__candidate',
+                'interview_answer__question',
+                'recruiter'
+            ).order_by('interview_answer__candidate__username', 'interview_answer__question__order')
+            
+            serializer = self.get_serializer(evaluations, many=True)
+            
+            return Response({
+                'campaign_id': campaign_id,
+                'campaign_title': campaign.title,
+                'evaluations': serializer.data,
+                'total_evaluations': evaluations.count()
+            }, status=status.HTTP_200_OK)
+            
+        except InterviewCampaign.DoesNotExist:
+            return Response({
+                'error': 'Campagne introuvable'
+            }, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=False, methods=['get'])
+    def by_answer(self, request):
+        """Récupère l'évaluation pour une réponse d'entretien spécifique"""
+        answer_id = request.query_params.get('answer_id')
+        
+        if not answer_id:
+            return Response({
+                'error': 'answer_id est requis'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            answer = InterviewAnswer.objects.get(id=answer_id)
+            
+            # Vérifier les permissions
+            if request.user.role == 'RECRUTEUR':
+                if answer.question.campaign.job_offer.recruiter != request.user:
+                    return Response({
+                        'error': 'Accès non autorisé à cette réponse'
+                    }, status=status.HTTP_403_FORBIDDEN)
+            elif request.user.role == 'CANDIDAT':
+                if answer.candidate != request.user:
+                    return Response({
+                        'error': 'Accès non autorisé à cette réponse'
+                    }, status=status.HTTP_403_FORBIDDEN)
+            
+            try:
+                evaluation = RecruiterEvaluation.objects.get(interview_answer=answer)
+                serializer = self.get_serializer(evaluation)
+                
+                return Response({
+                    'evaluation': serializer.data
+                }, status=status.HTTP_200_OK)
+                
+            except RecruiterEvaluation.DoesNotExist:
+                return Response({
+                    'message': 'Aucune évaluation trouvée pour cette réponse',
+                    'evaluation': None
+                }, status=status.HTTP_200_OK)
+            
+        except InterviewAnswer.DoesNotExist:
+            return Response({
+                'error': 'Réponse d\'entretien introuvable'
+            }, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=False, methods=['get'])
+    def by_application(self, request):
+        """Récupère l'évaluation globale pour une candidature donnée"""
+        application_id = request.query_params.get('application_id')
+        
+        if not application_id:
+            return Response({
+                'error': 'application_id est requis'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            application = JobApplication.objects.get(id=application_id)
+            
+            # Vérifier les permissions
+            if request.user.role == 'RECRUTEUR':
+                if application.job_offer.recruiter != request.user:
+                    return Response({
+                        'error': 'Accès non autorisé à cette candidature'
+                    }, status=status.HTTP_403_FORBIDDEN)
+            elif request.user.role == 'CANDIDAT':
+                if application.candidate != request.user:
+                    return Response({
+                        'error': 'Accès non autorisé à cette candidature'
+                    }, status=status.HTTP_403_FORBIDDEN)
+            
+            # Chercher une évaluation avec score global pour cette candidature
+            evaluation = RecruiterEvaluation.objects.filter(
+                interview_answer__candidate=application.candidate,
+                interview_answer__question__campaign__job_offer=application.job_offer,
+                global_score__isnull=False
+            ).first()
+            
+            if evaluation:
+                # Retourner les données globales
+                return Response({
+                    'job_application': application.id,
+                    'technical_skills': evaluation.technical_skills or 0,
+                    'communication_skills': evaluation.communication_skills or 0,
+                    'problem_solving': evaluation.problem_solving or 0,
+                    'cultural_fit': evaluation.cultural_fit or 0,
+                    'motivation': evaluation.motivation or 0,
+                    'final_recommendation': evaluation.recommendation or '',
+                    'strengths': evaluation.strengths or '',
+                    'weaknesses': evaluation.weaknesses or '',
+                    'general_comments': evaluation.general_comments or '',
+                    'next_steps': evaluation.next_steps or '',
+                    'overall_score': evaluation.global_score or 0
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'message': 'Aucune évaluation globale trouvée'
+                }, status=status.HTTP_200_OK)
+                
+        except JobApplication.DoesNotExist:
+            return Response({
+                'error': 'Candidature introuvable'
+            }, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=False, methods=['post'])
+    def create_or_update(self, request):
+        """Crée ou met à jour une évaluation globale"""
+        application_id = request.data.get('job_application')
+        
+        if not application_id:
+            return Response({
+                'error': 'job_application est requis'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            application = JobApplication.objects.get(id=application_id)
+            
+            # Vérifier les permissions
+            if request.user.role == 'RECRUTEUR':
+                if application.job_offer.recruiter != request.user:
+                    return Response({
+                        'error': 'Accès non autorisé à cette candidature'
+                    }, status=status.HTTP_403_FORBIDDEN)
+            
+            # Trouver ou créer une évaluation pour cette candidature
+            # On prend la première réponse du candidat pour cette campagne
+            first_answer = InterviewAnswer.objects.filter(
+                candidate=application.candidate,
+                question__campaign__job_offer=application.job_offer
+            ).first()
+            
+            if not first_answer:
+                return Response({
+                    'error': 'Aucune réponse trouvée pour cette candidature'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Créer ou mettre à jour l'évaluation
+            evaluation, created = RecruiterEvaluation.objects.get_or_create(
+                interview_answer=first_answer,
+                recruiter=request.user,
+                defaults={
+                    'overall_score': 0,
+                    'recommendation': 'average',
+                    'overall_feedback': '',
+                    'candidate': first_answer.candidate
+                }
+            )
+            
+            # Mettre à jour les champs globaux
+            evaluation.technical_skills = request.data.get('technical_skills', evaluation.technical_skills)
+            evaluation.communication_skills = request.data.get('communication_skills', evaluation.communication_skills)
+            evaluation.problem_solving = request.data.get('problem_solving', evaluation.problem_solving)
+            evaluation.cultural_fit = request.data.get('cultural_fit', evaluation.cultural_fit)
+            evaluation.motivation = request.data.get('motivation', evaluation.motivation)
+            evaluation.recommendation = request.data.get('final_recommendation', evaluation.recommendation)
+            evaluation.strengths = request.data.get('strengths', evaluation.strengths)
+            evaluation.weaknesses = request.data.get('weaknesses', evaluation.weaknesses)
+            evaluation.general_comments = request.data.get('general_comments', evaluation.general_comments)
+            evaluation.next_steps = request.data.get('next_steps', evaluation.next_steps)
+            evaluation.global_score = request.data.get('overall_score', evaluation.global_score)
+            
+            evaluation.save()
+            
+            # Retourner la réponse
+            response_data = {
+                'job_application': application.id,
+                'technical_skills': evaluation.technical_skills or 0,
+                'communication_skills': evaluation.communication_skills or 0,
+                'problem_solving': evaluation.problem_solving or 0,
+                'cultural_fit': evaluation.cultural_fit or 0,
+                'motivation': evaluation.motivation or 0,
+                'final_recommendation': evaluation.recommendation or '',
+                'strengths': evaluation.strengths or '',
+                'weaknesses': evaluation.weaknesses or '',
+                'general_comments': evaluation.general_comments or '',
+                'next_steps': evaluation.next_steps or '',
+                'overall_score': evaluation.global_score or 0
+            }
+            
+            return Response({
+                'evaluation': response_data,
+                'message': 'Évaluation globale sauvegardée avec succès'
+            }, status=status.HTTP_200_OK)
+                
+        except JobApplication.DoesNotExist:
+            return Response({
+                'error': 'Candidature introuvable'
+            }, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=False, methods=['post'])
+    def evaluate_answer(self, request):
+        """Crée ou met à jour une évaluation pour une réponse d'entretien"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Log des données reçues pour débogage
+        logger.info(f"Données reçues pour evaluate_answer: {request.data}")
+        
+        answer_id = request.data.get('interview_answer')
+        
+        if not answer_id:
+            logger.error("interview_answer manquant dans les données")
+            return Response({
+                'error': 'interview_answer est requis'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            answer = InterviewAnswer.objects.get(id=answer_id)
+            logger.info(f"Réponse trouvée: {answer.id} pour candidat {answer.candidate.username}")
+            
+            # Vérifier que le recruteur a accès à cette réponse
+            if answer.question.campaign.job_offer.recruiter != request.user:
+                logger.warning(f"Accès refusé: recruteur {request.user.id} vs propriétaire {answer.question.campaign.job_offer.recruiter.id}")
+                return Response({
+                    'error': 'Vous n\'avez pas l\'autorisation d\'évaluer cette réponse'
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            # Vérifier s'il existe déjà une évaluation
+            try:
+                evaluation = RecruiterEvaluation.objects.get(
+                    interview_answer=answer,
+                    recruiter=request.user
+                )
+                logger.info(f"Évaluation existante trouvée: {evaluation.id}")
+                # Mise à jour de l'évaluation existante
+                serializer = self.get_serializer(evaluation, data=request.data, partial=True)
+                if serializer.is_valid():
+                    serializer.save()
+                    logger.info("Évaluation mise à jour avec succès")
+                    return Response({
+                        'message': 'Évaluation mise à jour avec succès',
+                        'evaluation': serializer.data
+                    }, status=status.HTTP_200_OK)
+                else:
+                    logger.error(f"Erreurs de validation lors de la mise à jour: {serializer.errors}")
+                    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                    
+            except RecruiterEvaluation.DoesNotExist:
+                logger.info("Création d'une nouvelle évaluation")
+                # Création d'une nouvelle évaluation
+                serializer = self.get_serializer(data=request.data)
+                if serializer.is_valid():
+                    serializer.save(recruiter=request.user, candidate=answer.candidate)
+                    logger.info("Nouvelle évaluation créée avec succès")
+                    return Response({
+                        'message': 'Évaluation créée avec succès',
+                        'evaluation': serializer.data
+                    }, status=status.HTTP_201_CREATED)
+                else:
+                    logger.error(f"Erreurs de validation lors de la création: {serializer.errors}")
+                    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+        except InterviewAnswer.DoesNotExist:
+            logger.error(f"Réponse d'entretien {answer_id} introuvable")
+            return Response({
+                'error': 'Réponse d\'entretien introuvable'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Erreur inattendue dans evaluate_answer: {str(e)}")
+            return Response({
+                'error': 'Erreur interne du serveur'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class GlobalInterviewEvaluationViewSet(ModelViewSet):
+    """
+    ViewSet pour les évaluations globales d'entretien.
+    Permet de gérer l'évaluation finale après toutes les questions.
+    """
+    serializer_class = GlobalInterviewEvaluationSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        """Filtre les évaluations selon le rôle de l'utilisateur"""
+        user = self.request.user
+        
+        if user.role == 'RECRUTEUR':
+            return GlobalInterviewEvaluation.objects.filter(
+                recruiter=user
+            ).select_related(
+                'candidate', 'job_application__job_offer', 'recruiter'
+            ).order_by('-created_at')
+        
+        elif user.role == 'CANDIDAT':
+            return GlobalInterviewEvaluation.objects.filter(
+                candidate=user
+            ).select_related(
+                'candidate', 'job_application__job_offer', 'recruiter'
+            ).order_by('-created_at')
+        
+        else:
+            return GlobalInterviewEvaluation.objects.all().select_related(
+                'candidate', 'job_application__job_offer', 'recruiter'
+            ).order_by('-created_at')
+    
+    def perform_create(self, serializer):
+        """Assigne automatiquement le recruteur et candidat"""
+        job_application = serializer.validated_data['job_application']
+        serializer.save(
+            recruiter=self.request.user,
+            candidate=job_application.candidate
+        )
+    
+    @action(detail=False, methods=['get'])
+    def by_application(self, request):
+        """Récupère l'évaluation globale pour une candidature donnée"""
+        application_id = request.query_params.get('application_id')
+        
+        if not application_id:
+            return Response({
+                'error': 'application_id est requis'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            application = JobApplication.objects.get(id=application_id)
+            
+            # Vérifier les permissions
+            if request.user.role == 'RECRUTEUR':
+                if application.job_offer.recruiter != request.user:
+                    return Response({
+                        'error': 'Accès non autorisé à cette candidature'
+                    }, status=status.HTTP_403_FORBIDDEN)
+            elif request.user.role == 'CANDIDAT':
+                if application.candidate != request.user:
+                    return Response({
+                        'error': 'Accès non autorisé à cette candidature'
+                    }, status=status.HTTP_403_FORBIDDEN)
+            
+            try:
+                evaluation = GlobalInterviewEvaluation.objects.get(
+                    job_application=application,
+                    recruiter=request.user
+                )
+                serializer = self.get_serializer(evaluation)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+                
+            except GlobalInterviewEvaluation.DoesNotExist:
+                return Response({
+                    'message': 'Aucune évaluation globale trouvée'
+                }, status=status.HTTP_200_OK)
+                
+        except JobApplication.DoesNotExist:
+            return Response({
+                'error': 'Candidature introuvable'
+            }, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=False, methods=['post'])
+    def create_or_update(self, request):
+        """Crée ou met à jour une évaluation globale"""
+        application_id = request.data.get('job_application')
+        
+        if not application_id:
+            return Response({
+                'error': 'job_application est requis'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            application = JobApplication.objects.get(id=application_id)
+            
+            # Vérifier les permissions
+            if request.user.role == 'RECRUTEUR':
+                if application.job_offer.recruiter != request.user:
+                    return Response({
+                        'error': 'Accès non autorisé à cette candidature'
+                    }, status=status.HTTP_403_FORBIDDEN)
+            
+            # Créer ou mettre à jour l'évaluation globale
+            evaluation, created = GlobalInterviewEvaluation.objects.get_or_create(
+                job_application=application,
+                recruiter=request.user,
+                defaults={
+                    'candidate': application.candidate
+                }
+            )
+            
+            # Mettre à jour les champs
+            for field in ['technical_skills', 'communication_skills', 'problem_solving', 
+                         'cultural_fit', 'motivation', 'final_recommendation',
+                         'strengths', 'weaknesses', 'general_comments', 'next_steps']:
+                if field in request.data:
+                    setattr(evaluation, field, request.data[field])
+            
+            evaluation.save()
+            
+            serializer = self.get_serializer(evaluation)
+            
+            return Response({
+                'evaluation': serializer.data,
+                'message': 'Évaluation globale sauvegardée avec succès',
+                'created': created
+            }, status=status.HTTP_200_OK)
+                
+        except JobApplication.DoesNotExist:
+            return Response({
+                'error': 'Candidature introuvable'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+

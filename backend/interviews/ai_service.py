@@ -89,15 +89,25 @@ class AIInterviewQuestionGenerator:
     def generate_questions(self, offer_title: str, offer_description: str, 
                           number_of_questions: int = 5, difficulty: str = 'medium',
                           requirements: str = '', behavioral_count: int = None, 
-                          technical_count: int = None) -> List[Dict[str, Any]]:
+                          technical_count: int = None, existing_questions_count: int = 0) -> List[Dict[str, Any]]:
         """
         Génère des questions d'entretien personnalisées avec Google Gemini
         """
         logger.info(f"🤖 Génération de {number_of_questions} questions avec Gemini")
         logger.info(f"📋 Poste: {offer_title}")
         logger.info(f"🎯 Difficulté: {difficulty}")
+        logger.info(f"📊 Questions existantes: {existing_questions_count}")
         logger.info(f"🔧 Modèle initialisé: {self.model is not None}")
         logger.info(f"🔑 API Key présente: {self.api_key is not None}")
+        
+        # Calculer le nombre réel de questions à générer
+        actual_questions_needed = max(0, number_of_questions - existing_questions_count)
+        logger.info(f"🎯 Questions IA à générer: {actual_questions_needed} (demandé: {number_of_questions} - existantes: {existing_questions_count})")
+        
+        # Si aucune question à générer, retourner une liste vide
+        if actual_questions_needed == 0:
+            logger.info("✅ Aucune question à générer, questions existantes suffisantes")
+            return []
         
         # Validation des paramètres
         if not offer_title or len(offer_title.strip()) < 3:
@@ -108,42 +118,30 @@ class AIInterviewQuestionGenerator:
             logger.error("❌ Description de l'offre trop courte")
             raise ValueError("La description de l'offre doit contenir au moins 20 caractères")
         
-        if number_of_questions < 1 or number_of_questions > 10:
-            logger.error("❌ Nombre de questions invalide")
-            raise ValueError("Le nombre de questions doit être entre 1 et 10")
-        
-        # Créer la question obligatoire
-        mandatory_question = {
-            "question": "Présentez-vous et dites-nous pourquoi vous choisissez de nous rejoindre ?",
-            "type": "comportementale",
-            "difficulty": difficulty,
-            "expected_duration": 180,
-            "skills_assessed": ["communication", "motivation", "présentation"],
-            "order": 1,
-            "generated_by": "mandatory",
-            "offer_title": offer_title
-        }
-        
         # Gestion des compteurs spécifiques
         if behavioral_count is not None and technical_count is not None:
             logger.info(f"🎯 Mode compteurs spécifiques: {behavioral_count} comportementales + {technical_count} techniques")
             
-            # Calculer le nombre total de questions IA à générer
-            ai_questions_count = behavioral_count + technical_count
+            # Ajuster les compteurs selon les questions existantes et le nombre demandé
+            total_requested = behavioral_count + technical_count
+            if total_requested > actual_questions_needed:
+                # Réduire proportionnellement
+                ratio = actual_questions_needed / total_requested
+                behavioral_count = int(behavioral_count * ratio)
+                technical_count = actual_questions_needed - behavioral_count
             
-            if ai_questions_count == 0:
-                logger.info("⚠️ Aucune question IA demandée, retour de la question obligatoire uniquement")
-                return [mandatory_question]
+            if behavioral_count + technical_count == 0:
+                logger.info("⚠️ Aucune question IA demandée après ajustement")
+                return []
             
-            logger.info(f"🤖 Génération de {ai_questions_count} questions IA")
+            logger.info(f"🤖 Génération de {behavioral_count + technical_count} questions IA ajustées")
         else:
-            # Mode classique
-            ai_questions_count = number_of_questions - 1  # -1 pour la question obligatoire
-            behavioral_count = max(1, ai_questions_count // 2)  # Au moins 1 comportementale
-            technical_count = ai_questions_count - behavioral_count
+            # Mode classique - utiliser le nombre ajusté
+            behavioral_count = max(1, actual_questions_needed // 2) if actual_questions_needed > 0 else 0
+            technical_count = actual_questions_needed - behavioral_count
         
-        # Construire la liste finale des questions
-        final_questions = [mandatory_question]
+        # Construire la liste finale des questions (sans question obligatoire car elle existe déjà)
+        final_questions = []
         
         # Ajouter les questions comportementales statiques si demandées
         if behavioral_count > 0:

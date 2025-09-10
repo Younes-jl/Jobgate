@@ -38,7 +38,7 @@ class UserSerializer(serializers.ModelSerializer):
             # Informations personnelles étendues
             'phone', 'date_of_birth',
             # Adresse
-            'address', 'city', 'postal_code', 'country',
+            'city', 'postal_code', 'country',
             # Profils professionnels
             'linkedin_profile', 'github_profile', 'portfolio_url',
             # Expérience professionnelle

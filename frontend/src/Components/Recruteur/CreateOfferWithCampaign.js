@@ -68,7 +68,8 @@ const CreateOfferWithCampaign = () => {
                 question_count: aiOptions.questionCount,
                 difficulty_level: aiOptions.difficulty,
                 behavioral_count: aiOptions.behavioralCount,
-                technical_count: aiOptions.technicalCount
+                technical_count: aiOptions.technicalCount,
+                existing_questions_count: campaign.questions.length // Nombre de questions statiques déjà ajoutées
             };
             const response = await api.post('/interviews/generate-questions/', payload);
             const questions = response.data.questions || [];
