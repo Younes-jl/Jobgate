@@ -3,6 +3,7 @@ import { Container, Row, Col, Card, Badge, Button, Alert, Spinner, Modal } from 
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
 import api from '../../services/api';
+import JobGateLogo from '../Common/JobGateLogo';
 import './CandidateStyles.css';
 
 const CandidateNotifications = () => {
@@ -142,7 +143,9 @@ const CandidateNotifications = () => {
   }
 
   return (
-    <Container fluid className="py-4">
+    <div className="position-relative">
+      <JobGateLogo size="medium" className="jobgate-logo-header" />
+      <Container fluid className="py-4">
       <Row>
         <Col md={12}>
           <Card className="shadow-sm">
@@ -337,6 +340,7 @@ const CandidateNotifications = () => {
         </Modal.Footer>
       </Modal>
     </Container>
+    </div>
   );
 };
 

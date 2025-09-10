@@ -1,0 +1,84 @@
+.jobgate-logo {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.jobgate-logo-img {
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+/* Tailles du logo */
+.jobgate-logo-small {
+  width: 80px;
+  height: 30px;
+}
+
+.jobgate-logo-small .jobgate-logo-img {
+  height: 30px;
+}
+
+.jobgate-logo-medium {
+  width: 120px;
+  height: 45px;
+}
+
+.jobgate-logo-medium .jobgate-logo-img {
+  height: 45px;
+}
+
+.jobgate-logo-large {
+  width: 160px;
+  height: 60px;
+}
+
+.jobgate-logo-large .jobgate-logo-img {
+  height: 60px;
+}
+
+/* Positionnement en haut à gauche */
+.jobgate-logo-header {
+  position: absolute !important;
+  top: 20px !important;
+  left: 20px !important;
+  z-index: 1000 !important;
+}
+
+/* Styles pour les navbars */
+.brand-logo .jobgate-logo {
+  display: inline-flex !important;
+  align-items: center !important;
+}
+
+/* Ajustements pour les sidebars */
+.sidebar .jobgate-logo {
+  filter: brightness(1.2);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .jobgate-logo-header {
+    top: 15px;
+    left: 15px;
+  }
+  
+  .jobgate-logo-small {
+    width: 70px;
+    height: 25px;
+  }
+  
+  .jobgate-logo-small .jobgate-logo-img {
+    height: 25px;
+  }
+  
+  .jobgate-logo-medium {
+    width: 100px;
+    height: 35px;
+  }
+  
+  .jobgate-logo-medium .jobgate-logo-img {
+    height: 35px;
+  }
+}

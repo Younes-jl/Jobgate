@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { Container, Row, Col, Card, Badge, Button, Alert, Spinner } from 'react-bootstrap';
 import api from '../../services/api';
+import JobGateLogo from '../Common/JobGateLogo';
 
 const EntretienPage = () => {
   const { token } = useParams();
@@ -972,9 +973,12 @@ const EntretienPage = () => {
           <Col md={10}>
             {/* Header avec logo/titre simple */}
             <div className="text-center mb-4">
+              <div className="d-flex align-items-center justify-content-center mb-3">
+                <JobGateLogo size="medium" />
+              </div>
               <h2 className="text-primary mb-0">
                 <i className="bi bi-camera-video me-2"></i>
-                Entretien Vidéo JobGate
+                Entretien Vidéo
               </h2>
               <hr className="w-50 mx-auto" />
             </div>

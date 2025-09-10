@@ -5,6 +5,7 @@ import JobOfferList from './JobOfferList';
 import OffresAvecCandidatures from './OffresAvecCandidatures';
 import { useAuth } from '../auth/useAuth';
 import api from '../../services/api';
+import JobGateLogo from '../Common/JobGateLogo';
 import './RecruiterStyles.css';
 
 /**
@@ -384,8 +385,7 @@ const RecruiterDashboard = () => {
             <div className="p-3 mb-4 text-white rounded-3 shadow-sm" 
                  style={{ background: 'linear-gradient(135deg, #0d6efd 0%, #6f42c1 100%)' }}>
               <div className="d-flex align-items-center mb-2">
-                <i className="bi bi-building me-2" style={{ fontSize: '1.2rem' }}></i>
-                <h3 className="h5 mb-0 fw-bold">JobGate</h3>
+                <JobGateLogo size="small" />
               </div>
               <p className="mb-1 small opacity-90">Plateforme de Recrutement</p>
               {user && (

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, Row, Col, Badge, Button, Form, Alert, Spinner, Container, Modal } from 'react-bootstrap';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
+import JobGateLogo from '../Common/JobGateLogo';
 import './RecruiterStyles.css';
 
 const InterviewDetails = () => {
@@ -906,23 +907,25 @@ const InterviewDetails = () => {
   const currentAnswer = candidateAnswers[currentQuestionIndex];
 
   return (
-    <Container fluid className="py-4" style={{ backgroundColor: '#f8f9fa', minHeight: '100vh' }}>
-      {/* Header */}
-      <div className="mb-4">
-        <div className="d-flex justify-content-between align-items-start">
-          <div>
-            <h2 className="fw-bold mb-1" style={{ color: '#2c3e50' }}>Reviewing: {application.candidate.username}</h2>
-            <p className="text-muted mb-0">
-              Campaign: <span className="fw-medium">{campaign?.title || application.job_offer?.title}</span> • Q2 2024
-            </p>
+    <div className="position-relative">
+      <JobGateLogo size="medium" className="jobgate-logo-header" />
+      <Container fluid className="py-4" style={{ backgroundColor: '#f8f9fa', minHeight: '100vh' }}>
+        {/* Header */}
+        <div className="mb-4">
+          <div className="d-flex justify-content-between align-items-start">
+            <div>
+              <h2 className="fw-bold mb-1" style={{ color: '#2c3e50' }}>Reviewing: {application.candidate.username}</h2>
+              <p className="text-muted mb-0">
+                Campaign: <span className="fw-medium">{campaign?.title || application.job_offer?.title}</span> • Q2 2024
+              </p>
+            </div>
+            <Button variant="outline-secondary" onClick={() => navigate(-1)} className="px-3">
+              <i className="bi bi-arrow-left me-2"></i>Back
+            </Button>
           </div>
-          <Button variant="outline-secondary" onClick={() => navigate(-1)} className="px-3">
-            <i className="bi bi-arrow-left me-2"></i>Back
-          </Button>
         </div>
-      </div>
 
-      <Row className="g-4">
+        <Row className="g-4">
         {/* Left Column - Video Player */}
         <Col lg={7}>
           <Card className="shadow-sm border-0 mb-4">
@@ -2725,6 +2728,7 @@ const InterviewDetails = () => {
       </Modal>
 
     </Container>
+    </div>
   );
 };
 

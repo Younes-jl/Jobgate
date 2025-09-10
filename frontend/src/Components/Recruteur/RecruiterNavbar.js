@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
+import JobGateLogo from '../Common/JobGateLogo';
 import './RecruiterNavbar.css';
 
 const RecruiterNavbar = () => {
@@ -31,7 +32,7 @@ const RecruiterNavbar = () => {
       <div className="navbar-content">
         <div className="brand-section">
           <Link to="/dashboard" className="brand-logo">
-            JOBGATE
+            <JobGateLogo size="small" />
           </Link>
         </div>
         

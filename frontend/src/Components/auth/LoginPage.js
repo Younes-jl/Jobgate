@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { jwtDecode } from 'jwt-decode';
 import authService from './authApi';
 import { useAuth } from './useAuth';
+import JobGateLogo from '../Common/JobGateLogo';
 
 /**
  * Composant de page de connexion
@@ -88,8 +89,11 @@ function LoginPage() {
     };
 
     return (
-        <div style={{ maxWidth: '400px', margin: '0 auto', padding: '20px' }}>
-            <h2>Connexion</h2>
+        <div className="position-relative" style={{ minHeight: '100vh', backgroundColor: '#f8f9fa' }}>
+            <JobGateLogo size="large" className="jobgate-logo-header" />
+            <div style={{ maxWidth: '400px', margin: '0 auto', padding: '20px', paddingTop: '100px' }}>
+                <div style={{ backgroundColor: 'white', padding: '40px', borderRadius: '10px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
+                    <h2 style={{ textAlign: 'center', marginBottom: '30px', color: '#2c3e50' }}>Connexion</h2>
             <form onSubmit={handleSubmit}>
                 <div style={{ marginBottom: '15px' }}>
                     <label style={{ display: 'block', marginBottom: '5px' }}>Nom d'utilisateur:</label>
@@ -128,6 +132,8 @@ function LoginPage() {
                     {loading ? 'Connexion en cours...' : 'Se connecter'}
                 </button>
             </form>
+                </div>
+            </div>
         </div>
     );
 }

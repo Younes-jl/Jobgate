@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { Card, Container, Row, Col, Badge, Button } from 'react-bootstrap';
 import { useAuth } from '../auth/useAuth';
 import api from '../../services/api';
+import JobGateLogo from '../Common/JobGateLogo';
 import './CandidateStyles.css';
 
 /**
@@ -75,8 +76,10 @@ const CandidateDashboard = () => {
   }
 
   return (
-    <Container fluid className="py-4">
-      <Row>
+    <div className="position-relative">
+      <JobGateLogo size="medium" className="jobgate-logo-header" />
+      <Container fluid className="py-4">
+        <Row>
         {/* Section offres d'emploi - maintenant en pleine largeur */}
         <Col md={12}>
           <Card className="shadow-sm">
@@ -165,6 +168,7 @@ const CandidateDashboard = () => {
         </Col>
       </Row>
     </Container>
+    </div>
   );
 };
 
