@@ -307,9 +307,22 @@ class InterviewCampaignViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Filtre les campagnes par offres d'emploi du recruteur"""
         user = self.request.user
+        job_offer_id = self.request.query_params.get('job_offer')
+        
         if user.is_staff:
-            return InterviewCampaign.objects.all()
-        return InterviewCampaign.objects.filter(job_offer__recruiter=user)
+            queryset = InterviewCampaign.objects.all()
+        else:
+            queryset = InterviewCampaign.objects.filter(job_offer__recruiter=user)
+        
+        # Filtrer par job_offer si spécifié dans les paramètres
+        if job_offer_id:
+            logger.info(f"Filtrage des campagnes pour job_offer={job_offer_id}")
+            queryset = queryset.filter(job_offer=job_offer_id)
+            logger.info(f"Campagnes trouvées: {queryset.count()}")
+            for campaign in queryset:
+                logger.info(f"Campagne ID: {campaign.id}, Titre: {campaign.title}, Job Offer: {campaign.job_offer.id}")
+        
+        return queryset
     
     def create(self, request, *args, **kwargs):
         logger.error(f'Données de campagne reçues: {request.data}')
@@ -456,11 +469,13 @@ class JobApplicationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Créer la candidature simplifiée
+        # Créer la candidature avec tous les champs du formulaire
         application = JobApplication.objects.create(
             job_offer=job_offer,
             candidate=request.user,
-            status='pending'
+            status='pending',
+            lettre_motivation=request.data.get('motivation', ''),
+            filiere=request.data.get('field', '')
         )
         
         serializer = self.get_serializer(application)
@@ -490,6 +505,20 @@ class JobApplicationViewSet(viewsets.ModelViewSet):
         application.save()
         
         return Response(self.get_serializer(application).data)
+    
+    @action(detail=False, methods=['get'])
+    def recruiter_applications(self, request):
+        """Liste des candidatures reçues par le recruteur connecté"""
+        if not hasattr(request.user, 'role') or request.user.role != 'RECRUTEUR':
+            return Response(
+                {"detail": "Seuls les recruteurs peuvent accéder à cette ressource."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Récupérer toutes les candidatures pour les offres du recruteur
+        applications = JobApplication.objects.filter(job_offer__recruiter=request.user).order_by('-created_at')
+        serializer = self.get_serializer(applications, many=True)
+        return Response(serializer.data)
     
     @action(detail=False, methods=['get'])
     def my_applications(self, request):

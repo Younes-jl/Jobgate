@@ -71,7 +71,7 @@ const RecruiterDashboard = () => {
         const applications = applicationsResponse.value.data;
         realData.totalApplications = applications.length;
         realData.pendingApplications = applications.filter(app => 
-          app.status === 'pending' || app.status === 'submitted' || app.status === 'under_review'
+          app.status === 'pending'
         ).length;
         realData.acceptedApplications = applications.filter(app => 
           app.status === 'accepted' || app.status === 'approved'
@@ -80,7 +80,7 @@ const RecruiterDashboard = () => {
           app.status === 'rejected' || app.status === 'declined'
         ).length;
         
-        console.log(`Candidatures: Total=${realData.totalApplications}, En attente=${realData.pendingApplications}, Acceptées=${realData.acceptedApplications}`);
+        console.log(`Candidatures: Total=${realData.totalApplications}, En cours=${realData.pendingApplications}, Acceptées=${realData.acceptedApplications}`);
       } else {
         console.warn('Impossible de récupérer les candidatures directement, tentative par offre...');
         try {
@@ -98,7 +98,7 @@ const RecruiterDashboard = () => {
                   const offerApps = appsByOffer.data;
                   totalApps += offerApps.length;
                   pendingApps += offerApps.filter(app => 
-                    app.status === 'pending' || app.status === 'submitted' || app.status === 'under_review'
+                    app.status === 'pending'
                   ).length;
                   acceptedApps += offerApps.filter(app => 
                     app.status === 'accepted' || app.status === 'approved'
@@ -296,7 +296,7 @@ const RecruiterDashboard = () => {
                     <div>
                       <i className="bi bi-clock stat-icon"></i>
                       <div className="stat-value">{dashboardData.pendingApplications}</div>
-                      <div className="stat-label">En Attente</div>
+                      <div className="stat-label">En cours</div>
                     </div>
                   </div>
                 </div>

@@ -18,7 +18,6 @@ const JobOfferDetails = () => {
   const [applicationStats, setApplicationStats] = useState({
     total: 0,
     pending: 0,
-    under_review: 0,
     accepted: 0,
     rejected: 0
   });
@@ -67,7 +66,6 @@ const JobOfferDetails = () => {
       const stats = {
         total: applications.length,
         pending: applications.filter(app => app.status === 'pending').length,
-        under_review: applications.filter(app => app.status === 'under_review').length,
         accepted: applications.filter(app => app.status === 'accepted').length,
         rejected: applications.filter(app => app.status === 'rejected').length,
       };
@@ -183,11 +181,11 @@ const JobOfferDetails = () => {
       {/* Statistiques rapides */}
       <Row className="mb-4">
         <Col md={3}>
-          <Card className="stat-card success h-100 border-0">
+          <Card className="stat-card secondary h-100 border-0">
             <Card.Body className="text-center">
-              <i className="bi bi-people-fill text-success mb-2" style={{ fontSize: '2rem' }}></i>
+              <i className="bi bi-people-fill text-secondary mb-2" style={{ fontSize: '2rem' }}></i>
               <h3 className="fw-bold mb-1">{applicationStats.total}</h3>
-              <p className="text-muted small mb-0">Total Candidatures</p>
+              <p className="text-muted small mb-0">Total</p>
             </Card.Body>
           </Card>
         </Col>
@@ -196,25 +194,25 @@ const JobOfferDetails = () => {
             <Card.Body className="text-center">
               <i className="bi bi-clock-fill text-warning mb-2" style={{ fontSize: '2rem' }}></i>
               <h3 className="fw-bold mb-1">{applicationStats.pending}</h3>
-              <p className="text-muted small mb-0">En Attente</p>
+              <p className="text-muted small mb-0">En cours</p>
             </Card.Body>
           </Card>
         </Col>
         <Col md={3}>
-          <Card className="stat-card info h-100 border-0">
+          <Card className="stat-card success h-100 border-0">
             <Card.Body className="text-center">
-              <i className="bi bi-eye-fill text-info mb-2" style={{ fontSize: '2rem' }}></i>
-              <h3 className="fw-bold mb-1">{applicationStats.under_review}</h3>
-              <p className="text-muted small mb-0">En Examen</p>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={3}>
-          <Card className="stat-card primary h-100 border-0">
-            <Card.Body className="text-center">
-              <i className="bi bi-check-circle-fill text-primary mb-2" style={{ fontSize: '2rem' }}></i>
+              <i className="bi bi-check-circle-fill text-success mb-2" style={{ fontSize: '2rem' }}></i>
               <h3 className="fw-bold mb-1">{applicationStats.accepted}</h3>
               <p className="text-muted small mb-0">Acceptées</p>
+            </Card.Body>
+          </Card>
+        </Col>
+        <Col md={3}>
+          <Card className="stat-card danger h-100 border-0">
+            <Card.Body className="text-center">
+              <i className="bi bi-x-circle-fill text-danger mb-2" style={{ fontSize: '2rem' }}></i>
+              <h3 className="fw-bold mb-1">{applicationStats.rejected}</h3>
+              <p className="text-muted small mb-0">Refusées</p>
             </Card.Body>
           </Card>
         </Col>

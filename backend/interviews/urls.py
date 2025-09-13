@@ -31,6 +31,7 @@ urlpatterns = [
     # URLs pour les candidatures
     path('applications/my/', JobApplicationViewSet.as_view({'get': 'my_applications'}), name='my-applications'),
     path('applications/job/', JobApplicationViewSet.as_view({'get': 'job_applications'}), name='job-applications'),
+    path('applications/recruiter/', JobApplicationViewSet.as_view({'get': 'recruiter_applications'}), name='recruiter-applications'),
     # URLs publiques pour les liens d'entretien (accès sans authentification)
     path('offers/<int:pk>/public/', JobOfferViewSet.as_view({'get': 'public_detail'}), name='job-offer-public-detail'),
     path('campaigns/<int:pk>/public/', InterviewCampaignViewSet.as_view({'get': 'public_detail'}), name='campaign-public-detail'),

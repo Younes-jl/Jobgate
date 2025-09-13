@@ -20,7 +20,7 @@ class InterviewQuestionSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = InterviewQuestion
-        fields = ['id', 'text', 'question_type', 'time_limit', 'order', 'created_at']
+        fields = ['id', 'text', 'question_type', 'time_limit', 'order', 'created_at', 'campaign']
         read_only_fields = ['id', 'created_at']
 
 class InterviewCampaignSerializer(serializers.ModelSerializer):

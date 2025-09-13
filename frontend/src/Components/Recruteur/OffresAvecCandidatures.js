@@ -33,13 +33,12 @@ const OffresAvecCandidatures = () => {
             counts[offer.id] = {
               total: applications.length,
               pending: applications.filter(app => app.status === 'pending').length,
-              under_review: applications.filter(app => app.status === 'under_review').length,
               accepted: applications.filter(app => app.status === 'accepted').length,
               rejected: applications.filter(app => app.status === 'rejected').length
             };
           } catch (err) {
             console.error(`Erreur lors de la récupération des candidatures pour l'offre ${offer.id}:`, err);
-            counts[offer.id] = { total: 0, pending: 0, under_review: 0, accepted: 0, rejected: 0 };
+            counts[offer.id] = { total: 0, pending: 0, accepted: 0, rejected: 0 };
           }
         }
         setApplicationCounts(counts);
@@ -109,7 +108,7 @@ const OffresAvecCandidatures = () => {
                       </Badge>
                       {applicationCounts[offer.id]?.pending > 0 && (
                         <Badge bg="warning" className="py-2 px-3">
-                          En attente: {applicationCounts[offer.id]?.pending || 0}
+                          En cours: {applicationCounts[offer.id]?.pending || 0}
                         </Badge>
                       )}
                     </div>
@@ -122,10 +121,7 @@ const OffresAvecCandidatures = () => {
                         <p className="mb-0">
                           <span className="badge bg-secondary mx-1">Total: {applicationCounts[offer.id]?.total || 0}</span>
                           {applicationCounts[offer.id]?.pending > 0 && (
-                            <span className="badge bg-warning mx-1">En attente: {applicationCounts[offer.id]?.pending}</span>
-                          )}
-                          {applicationCounts[offer.id]?.under_review > 0 && (
-                            <span className="badge bg-info mx-1">En examen: {applicationCounts[offer.id]?.under_review}</span>
+                            <span className="badge bg-warning mx-1">En cours: {applicationCounts[offer.id]?.pending}</span>
                           )}
                           {applicationCounts[offer.id]?.accepted > 0 && (
                             <span className="badge bg-success mx-1">Acceptées: {applicationCounts[offer.id]?.accepted}</span>

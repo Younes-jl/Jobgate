@@ -396,10 +396,9 @@ class JobApplication(models.Model):
     Candidature complète avec lettre de motivation et filière.
     """
     STATUS_CHOICES = [
-        ('pending', 'En attente'),
-        ('under_review', 'En cours d\'évaluation'),
-        ('accepted', 'Acceptée'),
-        ('rejected', 'Refusée'),
+        ('pending', 'En cours'),
+        ('accepted', 'Acceptées'),
+        ('rejected', 'Refusées'),
     ]
 
     job_offer = models.ForeignKey(JobOffer, on_delete=models.CASCADE, related_name="applications", verbose_name="Offre d'emploi")

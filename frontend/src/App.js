@@ -12,6 +12,8 @@ import LoginPage from './Components/auth/LoginPage';
 import RecruiterDashboard from './Components/Recruteur/RecruiterDashboard';
 import CreateOfferWithCampaign from './Components/Recruteur/CreateOfferWithCampaign';
 import RecruiterJobOfferDetails from './Components/Recruteur/JobOfferDetails';
+import OfferCampaignDetails from './Components/Recruteur/OfferCampaignDetails';
+import EditCampaign from './Components/Recruteur/EditCampaign';
 import InterviewDetails from './Components/Recruteur/InterviewDetails';
 import CandidateDashboard from './Components/Candidat/CandidateDashboard';
 import CandidateDetails from './Components/Candidat/CandidateDetails';
@@ -140,6 +142,20 @@ function AppContent() {
                         <Route path="/create-offer" element={
                             user && user.role === 'RECRUTEUR' ? 
                             <CreateOfferWithCampaign /> : 
+                            <Navigate to="/" replace />
+                        } />
+                        
+                        {/* Détails complets d'une offre avec campagne (protégé) */}
+                        <Route path="/offers/:id/details" element={
+                            user && user.role === 'RECRUTEUR' ? 
+                            <OfferCampaignDetails /> : 
+                            <Navigate to="/" replace />
+                        } />
+                        
+                        {/* Modification d'une campagne (protégé) */}
+                        <Route path="/campaigns/:id/edit" element={
+                            user && user.role === 'RECRUTEUR' ? 
+                            <EditCampaign /> : 
                             <Navigate to="/" replace />
                         } />
                         

@@ -110,8 +110,8 @@ const JobApplicationsList = ({ jobOfferId }) => {
         // On continue quand même, le lien est généré et copié.
       }
 
-      // Passer la candidature en "under_review" après l'invitation
-      await handleUpdateStatus(applicationId, 'under_review');
+      // Passer la candidature en "pending" après l'invitation (reste en cours)
+      await handleUpdateStatus(applicationId, 'pending');
 
       // Afficher le lien de démarrage et proposer de copier
       const expirationDate = new Date(data.expires_at);
@@ -151,28 +151,21 @@ const JobApplicationsList = ({ jobOfferId }) => {
         return (
           <div className="invitation-status">
             <i className="bi bi-clock text-warning"></i>
-            <span className="text-muted ms-1">Non invité</span>
-          </div>
-        );
-      case 'under_review':
-        return (
-          <div className="invitation-status">
-            <i className="bi bi-send-check text-success"></i>
-            <span className="text-success ms-1">Invité</span>
+            <span className="text-warning ms-1">En cours</span>
           </div>
         );
       case 'accepted':
         return (
           <div className="invitation-status">
             <i className="bi bi-check-circle text-success"></i>
-            <span className="text-success ms-1">Entretien terminé</span>
+            <span className="text-success ms-1">Acceptées</span>
           </div>
         );
       case 'rejected':
         return (
           <div className="invitation-status">
             <i className="bi bi-x-circle text-danger"></i>
-            <span className="text-danger ms-1">Rejeté</span>
+            <span className="text-danger ms-1">Refusées</span>
           </div>
         );
       default:
@@ -188,13 +181,11 @@ const JobApplicationsList = ({ jobOfferId }) => {
   const getStatusBadge = (status) => {
     switch (status) {
       case 'pending':
-        return <Badge bg="warning">En attente</Badge>;
-      case 'under_review':
-        return <Badge bg="info">En cours d'examen</Badge>;
+        return <Badge bg="warning">En cours</Badge>;
       case 'accepted':
-        return <Badge bg="success">Acceptée</Badge>;
+        return <Badge bg="success">Acceptées</Badge>;
       case 'rejected':
-        return <Badge bg="danger">Refusée</Badge>;
+        return <Badge bg="danger">Refusées</Badge>;
       default:
         return <Badge bg="secondary">Inconnue</Badge>;
     }
@@ -253,10 +244,9 @@ const JobApplicationsList = ({ jobOfferId }) => {
                 className="shadow-sm"
               >
                 <option value="all">Tous les statuts</option>
-                <option value="pending">En attente</option>
-                <option value="under_review">En cours d'examen</option>
-                <option value="accepted">Acceptée</option>
-                <option value="rejected">Refusée</option>
+                <option value="pending">En cours</option>
+                <option value="accepted">Acceptées</option>
+                <option value="rejected">Refusées</option>
               </Form.Select>
             </Form.Group>
           </Col>
@@ -314,10 +304,8 @@ const JobApplicationsList = ({ jobOfferId }) => {
                           </Button>
                         )}
 
-                        {(application.status === 'under_review' || 
-                          application.status === 'accepted' || 
-                          application.status === 'rejected' || 
-                          application.status === 'technical_interview') && (
+                        {(application.status === 'accepted' || 
+                          application.status === 'rejected') && (
                           <Button
                             className="btn-reinvite"
                             size="sm"
@@ -416,14 +404,6 @@ const JobApplicationsList = ({ jobOfferId }) => {
               />
             </div>
             
-            <div className="mb-3">
-              <label className="form-label">Message personnalisé (optionnel)</label>
-              <textarea 
-                className="form-control" 
-                rows="3"
-                placeholder="Ajouter un message personnalisé qui sera inclus dans l'email d'invitation..."
-              ></textarea>
-            </div>
             
             <div className="mb-3">
               <label className="form-label">
@@ -446,19 +426,6 @@ const JobApplicationsList = ({ jobOfferId }) => {
               </div>
             </div>
             
-            <div className="form-check mb-3">
-              <input className="form-check-input" type="checkbox" id="sendReminder" defaultChecked />
-              <label className="form-check-label" htmlFor="sendReminder">
-                Envoyer un rappel automatique 2 jours avant l'expiration
-              </label>
-            </div>
-            
-            <div className="form-check mb-3">
-              <input className="form-check-input" type="checkbox" id="copyManager" />
-              <label className="form-check-label" htmlFor="copyManager">
-                Envoyer une copie au hiring manager
-              </label>
-            </div>
           </div>
         </Modal.Body>
         <Modal.Footer>

@@ -125,7 +125,7 @@ function JobOfferList({ refreshTrigger = 0 }) {
                             <h3 style={{ marginTop: 0 }}>{offer.title}</h3>
                             <p><strong>Lieu :</strong> {offer.location}</p>
                             <p><strong>Créée le :</strong> {new Date(offer.created_at).toLocaleDateString()}</p>
-                            <Link to={`/offers/${offer.id}`}>Voir les détails</Link>
+                            <Link to={`/offers/${offer.id}/details`}>Voir les détails complets</Link>
                         </li>
                     ))}
                 </ul>
