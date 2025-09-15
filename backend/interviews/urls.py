@@ -3,8 +3,8 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     JobOfferViewSet, InterviewCampaignViewSet, InterviewQuestionViewSet,
     CampaignLinkViewSet, InterviewAnswerViewSet, JobApplicationViewSet,
-    AiEvaluationViewSet, RecruiterEvaluationViewSet, GlobalInterviewEvaluationViewSet,
-    CloudinaryVideoUploadView, EvaluateVideoView, AIQuestionGeneratorView, AIQuestionAnalysisView
+    RecruiterEvaluationViewSet, GlobalInterviewEvaluationViewSet,
+    CloudinaryVideoUploadView, AIQuestionGeneratorView, AIQuestionAnalysisView
 )
 from .applications_api import candidate_details
 from .notification_views import NotificationViewSet
@@ -17,7 +17,6 @@ router.register(r'questions', InterviewQuestionViewSet, basename='interview-ques
 router.register(r'applications', JobApplicationViewSet, basename='job-applications')
 router.register(r'campaign-links', CampaignLinkViewSet, basename='campaign-links')
 router.register(r'answers', InterviewAnswerViewSet, basename='interview-answers')
-router.register(r'ai-evaluations', AiEvaluationViewSet, basename='ai-evaluations')
 router.register(r'recruiter-evaluations', RecruiterEvaluationViewSet, basename='recruiter-evaluations')
 router.register(r'global-evaluations', GlobalInterviewEvaluationViewSet, basename='global-evaluations')
 router.register(r'notifications', NotificationViewSet, basename='notifications')
@@ -44,8 +43,6 @@ urlpatterns = [
     # ========== URLs Cloudinary pour Upload Vidéo ==========
     path('videos/upload/', CloudinaryVideoUploadView.as_view(), name='cloudinary-video-upload'),
     
-    # ========== URLs IA pour Évaluation Vidéo ==========
-    path('ai/evaluate-video/', EvaluateVideoView.as_view(), name='ai-evaluate-video'),
     
     # ========== URL pour les détails candidat ==========
     path('candidates/<int:candidate_id>/details/', candidate_details, name='candidate-details'),

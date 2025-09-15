@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     JobOffer, InterviewCampaign, InterviewQuestion, CampaignLink, 
-    InterviewAnswer, JobApplication, AiEvaluation, RecruiterEvaluation,
+    InterviewAnswer, JobApplication, RecruiterEvaluation,
     GlobalInterviewEvaluation
 )
 class InterviewQuestionInline(admin.TabularInline):
@@ -144,78 +144,7 @@ class JobApplicationAdmin(admin.ModelAdmin):
     mark_as_under_review.short_description = "Marquer comme en cours d'évaluation"
 
 
-@admin.register(AiEvaluation)
-class AiEvaluationAdmin(admin.ModelAdmin):
-    list_display = (
-        'interview_answer', 'ai_provider', 'ai_score', 'status', 
-        'processing_time', 'created_at'
-    )
-    list_filter = ('ai_provider', 'status', 'created_at', 'ai_score')
-    search_fields = (
-        'interview_answer__candidate__username',
-        'interview_answer__candidate__email',
-        'interview_answer__question__text',
-        'ai_feedback'
-    )
-    readonly_fields = ('created_at', 'updated_at', 'processing_time')
-    
-    fieldsets = (
-        ('Informations principales', {
-            'fields': ('interview_answer', 'status')
-        }),
-        ('Analyse IA', {
-            'fields': ('ai_provider', 'ai_score', 'ai_feedback', 'transcription')
-        }),
-        ('Compétences attendues', {
-            'fields': ('expected_skills',)
-        }),
-        ('Performance', {
-            'fields': ('processing_time', 'error_message'),
-            'classes': ('collapse',)
-        }),
-        ('Métadonnées', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',)
-        })
-    )
-    
-    def get_queryset(self, request):
-        """Optimiser les requêtes avec select_related"""
-        return super().get_queryset(request).select_related(
-            'interview_answer__candidate',
-            'interview_answer__question__campaign'
-        )
-    
-    def candidate_name(self, obj):
-        """Nom du candidat"""
-        return obj.interview_answer.candidate.username
-    candidate_name.short_description = "Candidat"
-    
-    def question_text(self, obj):
-        """Texte de la question"""
-        text = obj.interview_answer.question.text
-        return f"{text[:50]}{'...' if len(text) > 50 else ''}"
-    question_text.short_description = "Question"
-    
-    def score_grade(self, obj):
-        """Note sur 5 étoiles"""
-        return obj.get_score_grade()
-    score_grade.short_description = "Note (/5)"
-    
-    # Actions personnalisées
-    actions = ['reprocess_evaluation', 'mark_as_completed']
-    
-    def reprocess_evaluation(self, request, queryset):
-        """Relancer l'évaluation IA"""
-        updated = queryset.update(status='pending')
-        self.message_user(request, f'{updated} évaluation(s) marquée(s) pour retraitement.')
-    reprocess_evaluation.short_description = "Relancer l'évaluation IA"
-    
-    def mark_as_completed(self, request, queryset):
-        """Marquer comme terminé"""
-        updated = queryset.update(status='completed')
-        self.message_user(request, f'{updated} évaluation(s) marquée(s) comme terminée(s).')
-    mark_as_completed.short_description = "Marquer comme terminé"
+# AiEvaluation admin has been removed as part of AI video evaluation cleanup
 
 
 @admin.register(RecruiterEvaluation)
