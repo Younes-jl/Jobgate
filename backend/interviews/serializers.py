@@ -22,6 +22,9 @@ class InterviewQuestionSerializer(serializers.ModelSerializer):
         model = InterviewQuestion
         fields = ['id', 'text', 'question_type', 'time_limit', 'order', 'created_at', 'campaign']
         read_only_fields = ['id', 'created_at']
+        extra_kwargs = {
+            'campaign': {'required': False}  # Rendre le champ campaign optionnel
+        }
 
 class InterviewCampaignSerializer(serializers.ModelSerializer):
     """Serializer pour les campagnes d'entretiens"""

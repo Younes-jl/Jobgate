@@ -247,7 +247,8 @@ class JobOfferViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         logger.error(f'Données validées: {serializer.validated_data}')
-        serializer.save(recruiter=self.request.user)
+        job_offer = serializer.save(recruiter=self.request.user)
+    
     
     @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
     def public_detail(self, request, pk=None):
