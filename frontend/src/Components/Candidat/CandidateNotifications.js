@@ -3,7 +3,6 @@ import { Container, Row, Col, Card, Badge, Button, Alert, Spinner, Modal } from 
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
 import api from '../../services/api';
-import JobGateLogo from '../Common/JobGateLogo';
 import './CandidateStyles.css';
 
 const CandidateNotifications = () => {

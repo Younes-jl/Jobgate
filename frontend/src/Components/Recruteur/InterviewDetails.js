@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, Row, Col, Badge, Button, Form, Alert, Spinner, Container, Modal } from 'react-bootstrap';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
-import JobGateLogo from '../Common/JobGateLogo';
 import './RecruiterStyles.css';
 
 const InterviewDetails = () => {
@@ -15,10 +14,6 @@ const InterviewDetails = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [currentScore, setCurrentScore] = useState(0);
-  const [currentComments, setCurrentComments] = useState('');
-  const [overallScore, setOverallScore] = useState(0);
-  const [overallComments, setOverallComments] = useState('');
   const [videoPlaying, setVideoPlaying] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [analyzingAI, setAnalyzingAI] = useState(false);
@@ -286,6 +281,7 @@ const InterviewDetails = () => {
   };
 
   // Fonction d'analyse IA pour la vidéo courante
+  /*
   const analyzeCurrentVideo = async () => {
     if (!candidateAnswers[currentQuestionIndex]) return;
     
@@ -351,6 +347,7 @@ const InterviewDetails = () => {
       setAnalyzingAI(false);
     }
   };
+  */
 
   // Fonction d'analyse IA globale améliorée
   const analyzeWithAI = async () => {
@@ -753,16 +750,16 @@ const InterviewDetails = () => {
   };
 
   // Fonction pour vérifier si toutes les questions ont été évaluées
-  const checkAllQuestionsEvaluated = () => {
+  const checkAllQuestionsEvaluated = useCallback(() => {
     const evaluatedCount = Object.keys(questionEvaluations).length;
     const totalQuestions = candidateAnswers.length;
     setAllQuestionsEvaluated(evaluatedCount === totalQuestions && totalQuestions > 0);
-  };
+  }, [questionEvaluations, candidateAnswers]);
 
   // Effect pour vérifier l'état d'évaluation complète
   useEffect(() => {
     checkAllQuestionsEvaluated();
-  }, [questionEvaluations, candidateAnswers]);
+  }, [checkAllQuestionsEvaluated]);
 
   // Fonctions pour l'évaluation globale de l'entretien
   const loadGlobalEvaluation = async () => {

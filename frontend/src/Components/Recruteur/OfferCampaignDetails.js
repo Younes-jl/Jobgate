@@ -63,13 +63,13 @@ const OfferCampaignDetails = () => {
               title: camp.title,
               job_offer: camp.job_offer,
               job_offer_type: typeof camp.job_offer,
-              matches: camp.job_offer == id || camp.job_offer === parseInt(id)
+              matches: camp.job_offer === id || camp.job_offer === parseInt(id)
             });
           });
           
           // Filtrer pour trouver la bonne campagne
           const correctCampaign = campaignResponse.data.find(camp => 
-            camp.job_offer == id || camp.job_offer === parseInt(id)
+            camp.job_offer === id || camp.job_offer === parseInt(id)
           );
           
           if (correctCampaign) {

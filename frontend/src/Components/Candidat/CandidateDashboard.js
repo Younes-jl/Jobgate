@@ -4,7 +4,6 @@ import { Link } from 'react-router-dom';
 import { Card, Container, Row, Col, Badge, Button } from 'react-bootstrap';
 import { useAuth } from '../auth/useAuth';
 import api from '../../services/api';
-import JobGateLogo from '../Common/JobGateLogo';
 import './CandidateStyles.css';
 
 /**
