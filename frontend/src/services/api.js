@@ -8,7 +8,7 @@ import axios from 'axios';
  */
 const api = axios.create({
     baseURL: 'http://localhost:8000/api', // URL de base de notre API Django
-    timeout: 10000, // Timeout par défaut de 10 secondes
+    timeout: 120000, // Timeout de 2 minutes pour l'évaluation IA
     headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'

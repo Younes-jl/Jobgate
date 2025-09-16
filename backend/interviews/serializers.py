@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     JobOffer, InterviewCampaign, InterviewQuestion, CampaignLink, 
-    InterviewAnswer, JobApplication, RecruiterEvaluation, GlobalInterviewEvaluation
+    InterviewAnswer, JobApplication, RecruiterEvaluation, GlobalInterviewEvaluation, AiEvaluation
 )
 from users.models import CustomUser
 from users.serializers import UserSerializer
@@ -304,45 +304,189 @@ class RecruiterEvaluationSerializer(serializers.ModelSerializer):
 
         return attrs
 
-
+    
 class GlobalInterviewEvaluationSerializer(serializers.ModelSerializer):
-    """Serializer pour l'évaluation globale d'entretien"""
-    candidate_name = serializers.CharField(source='candidate.get_full_name', read_only=True)
-    recruiter_name = serializers.CharField(source='recruiter.get_full_name', read_only=True)
-    job_title = serializers.CharField(source='job_application.job_offer.title', read_only=True)
+    """Serializer pour les évaluations globales d'entretien"""
+    candidate_name = serializers.SerializerMethodField()
+    job_offer_title = serializers.CharField(source='job_application.job_offer.title', read_only=True)
     overall_score_display = serializers.SerializerMethodField()
-    recommendation_display = serializers.CharField(source='get_final_recommendation_display', read_only=True)
     
     class Meta:
         model = GlobalInterviewEvaluation
         fields = [
-            'id', 'job_application', 'candidate', 'recruiter',
-            'candidate_name', 'recruiter_name', 'job_title',
+            'id', 'job_application', 'recruiter', 'candidate',
             'technical_skills', 'communication_skills', 'problem_solving',
-            'cultural_fit', 'motivation', 'final_recommendation', 'recommendation_display',
+            'cultural_fit', 'motivation', 'final_recommendation',
             'strengths', 'weaknesses', 'general_comments', 'next_steps',
-            'overall_score', 'overall_score_display',
-            'created_at', 'updated_at'
+            'overall_score', 'created_at', 'updated_at',
+            # Champs calculés
+            'candidate_name', 'job_offer_title', 'overall_score_display'
         ]
-        read_only_fields = ['id', 'overall_score', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'overall_score']
+    
+    def get_candidate_name(self, obj):
+        """Nom complet du candidat"""
+        candidate = obj.candidate
+        if candidate.first_name and candidate.last_name:
+            return f"{candidate.first_name} {candidate.last_name}"
+        return candidate.username
     
     def get_overall_score_display(self, obj):
         """Score global formaté"""
-        if obj.overall_score is not None:
+        if obj.overall_score:
             return f"{obj.overall_score:.1f}/100"
         return "Non calculé"
+
+
+class AiEvaluationSerializer(serializers.ModelSerializer):
+    """Serializer pour les évaluations IA des réponses vidéo"""
+    candidate_name = serializers.SerializerMethodField()
+    question_text = serializers.CharField(source='interview_answer.question.text', read_only=True)
+    question_order = serializers.IntegerField(source='interview_answer.question.order', read_only=True)
+    campaign_title = serializers.CharField(source='interview_answer.question.campaign.title', read_only=True)
+    video_url = serializers.CharField(source='interview_answer.cloudinary_secure_url', read_only=True)
     
-    def validate(self, attrs):
-        """Validation des scores (0-100)"""
-        score_fields = ['technical_skills', 'communication_skills', 'problem_solving', 'cultural_fit', 'motivation']
-        
-        for field in score_fields:
-            score = attrs.get(field)
-            if score is not None and (score < 0 or score > 100):
-                raise serializers.ValidationError({
-                    field: "Le score doit être compris entre 0 et 100"
-                })
-        
-        return attrs
+    # Scores formatés et grades
+    communication_grade = serializers.SerializerMethodField()
+    relevance_grade = serializers.SerializerMethodField()
+    confidence_grade = serializers.SerializerMethodField()
+    overall_grade = serializers.SerializerMethodField()
+    
+    # Scores en pourcentage
+    communication_percentage = serializers.SerializerMethodField()
+    relevance_percentage = serializers.SerializerMethodField()
+    confidence_percentage = serializers.SerializerMethodField()
+    overall_percentage = serializers.SerializerMethodField()
+    
+    # Statut formaté
+    status_display = serializers.SerializerMethodField()
+    processing_time_display = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = AiEvaluation
+        fields = [
+            'id', 'interview_answer', 'transcription', 'transcription_language',
+            'transcription_confidence', 'communication_score', 'relevance_score',
+            'confidence_score', 'overall_ai_score', 'ai_feedback', 'strengths',
+            'weaknesses', 'ai_provider', 'processing_time', 'status',
+            'error_message', 'created_at', 'updated_at', 'completed_at',
+            # Champs calculés pour l'affichage
+            'candidate_name', 'question_text', 'question_order', 'campaign_title',
+            'video_url', 'communication_grade', 'relevance_grade', 'confidence_grade',
+            'overall_grade', 'communication_percentage', 'relevance_percentage',
+            'confidence_percentage', 'overall_percentage', 'status_display',
+            'processing_time_display'
+        ]
+        read_only_fields = [
+            'id', 'created_at', 'updated_at', 'completed_at', 'processing_time',
+            'candidate_name', 'question_text', 'question_order', 'campaign_title',
+            'video_url', 'overall_ai_score'
+        ]
+    
+    def get_candidate_name(self, obj):
+        """Nom complet du candidat"""
+        candidate = obj.candidate
+        if candidate.first_name and candidate.last_name:
+            return f"{candidate.first_name} {candidate.last_name}"
+        return candidate.username
+    
+    def get_communication_grade(self, obj):
+        """Grade communication (A, B, C, D, F)"""
+        return obj.get_score_grade(obj.communication_score)
+    
+    def get_relevance_grade(self, obj):
+        """Grade pertinence (A, B, C, D, F)"""
+        return obj.get_score_grade(obj.relevance_score)
+    
+    def get_confidence_grade(self, obj):
+        """Grade confiance (A, B, C, D, F)"""
+        return obj.get_score_grade(obj.confidence_score)
+    
+    def get_overall_grade(self, obj):
+        """Grade global (A, B, C, D, F)"""
+        return obj.get_overall_grade()
+    
+    def get_communication_percentage(self, obj):
+        """Score communication en pourcentage"""
+        if obj.communication_score is not None:
+            return f"{(obj.communication_score * 10):.0f}%"
+        return "N/A"
+    
+    def get_relevance_percentage(self, obj):
+        """Score pertinence en pourcentage"""
+        if obj.relevance_score is not None:
+            return f"{(obj.relevance_score * 10):.0f}%"
+        return "N/A"
+    
+    def get_confidence_percentage(self, obj):
+        """Score confiance en pourcentage"""
+        if obj.confidence_score is not None:
+            return f"{(obj.confidence_score * 10):.0f}%"
+        return "N/A"
+    
+    def get_overall_percentage(self, obj):
+        """Score global en pourcentage"""
+        score = obj.overall_ai_score or obj.calculate_overall_score()
+        if score is not None:
+            return f"{(score * 10):.0f}%"
+        return "N/A"
+    
+    def get_status_display(self, obj):
+        """Statut formaté en français"""
+        status_map = {
+            'pending': 'En attente',
+            'processing': 'En cours',
+            'completed': 'Terminée',
+            'failed': 'Échec'
+        }
+        return status_map.get(obj.status, obj.status)
+    
+    def get_processing_time_display(self, obj):
+        """Temps de traitement formaté"""
+        if obj.processing_time:
+            if obj.processing_time < 60:
+                return f"{obj.processing_time:.1f}s"
+            else:
+                minutes = int(obj.processing_time // 60)
+                seconds = int(obj.processing_time % 60)
+                return f"{minutes}m {seconds}s"
+        return "N/A"
+
+
+class AiEvaluationCreateSerializer(serializers.Serializer):
+    """Serializer pour déclencher une évaluation IA"""
+    interview_answer_id = serializers.IntegerField()
+    force_reevaluation = serializers.BooleanField(default=False)
+    
+    def validate_interview_answer_id(self, value):
+        """Validation de l'ID de la réponse d'entretien"""
+        try:
+            interview_answer = InterviewAnswer.objects.get(id=value)
+            if not (interview_answer.cloudinary_secure_url or interview_answer.cloudinary_url):
+                raise serializers.ValidationError(
+                    "Cette réponse n'a pas de vidéo Cloudinary associée"
+                )
+            return value
+        except InterviewAnswer.DoesNotExist:
+            raise serializers.ValidationError("Réponse d'entretien introuvable")
+
+
+class AiEvaluationBulkSerializer(serializers.Serializer):
+    """Serializer pour évaluation IA en lot"""
+    campaign_id = serializers.IntegerField()
+    candidate_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+        help_text="IDs des candidats à évaluer (tous si vide)"
+    )
+    force_reevaluation = serializers.BooleanField(default=False)
+    
+    def validate_campaign_id(self, value):
+        """Validation de l'ID de la campagne"""
+        try:
+            InterviewCampaign.objects.get(id=value)
+            return value
+        except InterviewCampaign.DoesNotExist:
+            raise serializers.ValidationError("Campagne d'entretien introuvable")
 
 

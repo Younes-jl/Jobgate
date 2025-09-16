@@ -27,6 +27,7 @@ const EntretienPage = () => {
   const [timeLeft, setTimeLeft] = useState(30);
   const [mediaRecorder, setMediaRecorder] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false); // État pour le loader de traitement
 
   // Fonction pour formater la description de l'offre
   const formatJobDescription = (description) => {
@@ -169,15 +170,19 @@ const EntretienPage = () => {
           
           if (blob.size > 0) {
             try {
+              // Activer le loader de traitement
+              setIsProcessing(true);
               const uploadResult = await saveVideoAnswer(blob, currentQuestionIndex, actualDuration);
               console.log('=== UPLOAD TERMINÉ, PASSAGE À LA QUESTION SUIVANTE ===');
               console.log('Upload result:', uploadResult);
               // Si la sauvegarde réussit, passer à la question suivante
               setTimeout(() => {
+                setIsProcessing(false);
                 nextQuestion();
               }, 100); // Petit délai pour éviter les conflits d'état
             } catch (error) {
               console.error('Échec sauvegarde, arrêt de la progression');
+              setIsProcessing(false);
               // L'erreur est déjà gérée dans saveVideoAnswer
               // Ne pas appeler nextQuestion() pour arrêter la progression
             }
@@ -210,6 +215,8 @@ const EntretienPage = () => {
       mediaRecorder.stop();
     }
     setIsRecording(false);
+    // Activer le loader immédiatement quand on clique sur arrêter
+    setIsProcessing(true);
   };
 
   // Fonction pour sauvegarder la réponse vidéo avec Cloudinary
@@ -744,7 +751,7 @@ const EntretienPage = () => {
               </Card>
 
               {/* Bouton d'arrêt (optionnel) */}
-              {currentPhase === 'recording' && (
+              {currentPhase === 'recording' && !isProcessing && (
                 <div className="text-center">
                   <Button 
                     variant="danger" 
@@ -757,6 +764,32 @@ const EntretienPage = () => {
                     <i className="bi bi-stop-circle me-2"></i>
                     Arrêter l'enregistrement
                   </Button>
+                </div>
+              )}
+              
+              {/* Loader de traitement */}
+              {isProcessing && (
+                <div className="text-center">
+                  <div className="d-flex flex-column align-items-center">
+                    <Spinner 
+                      animation="border" 
+                      variant="primary" 
+                      style={{ 
+                        width: '3rem', 
+                        height: '3rem',
+                        borderWidth: '0.3em'
+                      }}
+                    />
+                    <div className="mt-3">
+                      <h5 className="text-primary mb-1">
+                        <i className="bi bi-cloud-upload me-2"></i>
+                        Traitement en cours...
+                      </h5>
+                      <p className="text-muted mb-0">
+                        Sauvegarde de votre réponse et passage à la question suivante
+                      </p>
+                    </div>
+                  </div>
                 </div>
               )}
             </Col>

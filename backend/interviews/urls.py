@@ -4,7 +4,8 @@ from .views import (
     JobOfferViewSet, InterviewCampaignViewSet, InterviewQuestionViewSet,
     CampaignLinkViewSet, InterviewAnswerViewSet, JobApplicationViewSet,
     RecruiterEvaluationViewSet, GlobalInterviewEvaluationViewSet,
-    CloudinaryVideoUploadView, AIQuestionGeneratorView, AIQuestionAnalysisView
+    CloudinaryVideoUploadView, AIQuestionGeneratorView, AIQuestionAnalysisView,
+    AiEvaluationViewSet
 )
 from .applications_api import candidate_details
 from .notification_views import NotificationViewSet
@@ -19,6 +20,7 @@ router.register(r'campaign-links', CampaignLinkViewSet, basename='campaign-links
 router.register(r'answers', InterviewAnswerViewSet, basename='interview-answers')
 router.register(r'recruiter-evaluations', RecruiterEvaluationViewSet, basename='recruiter-evaluations')
 router.register(r'global-evaluations', GlobalInterviewEvaluationViewSet, basename='global-evaluations')
+router.register(r'ai-evaluations', AiEvaluationViewSet, basename='ai-evaluations')
 router.register(r'notifications', NotificationViewSet, basename='notifications')
 
 urlpatterns = [

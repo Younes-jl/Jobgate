@@ -506,26 +506,19 @@ class RecruiterEvaluation(models.Model):
         null=True
     )
     
-    # Score global de l'entretien (remplace GlobalInterviewEvaluation)
-    global_score = models.FloatField(
-        verbose_name="Score Global Entretien (0-100)",
-        help_text="Score global pour l'ensemble de l'entretien du candidat",
-        null=True,
-        blank=True
-    )
     
-    # Recommandation du recruteur
+    # Recommandation pour cette réponse spécifique
     RECOMMENDATION_CHOICES = [
-        ('excellent', 'Excellent candidat'),
-        ('good', 'Bon candidat'),
-        ('average', 'Candidat moyen'),
-        ('below_average', 'En dessous de la moyenne'),
-        ('poor', 'Candidat faible'),
+        ('excellent', 'Excellente réponse'),
+        ('good', 'Bonne réponse'),
+        ('average', 'Réponse moyenne'),
+        ('below_average', 'Réponse faible'),
+        ('poor', 'Réponse insuffisante'),
     ]
     recommendation = models.CharField(
         max_length=20,
         choices=RECOMMENDATION_CHOICES,
-        verbose_name="Recommandation",
+        verbose_name="Recommandation pour cette réponse",
         null=True,
         blank=True
     )
@@ -541,7 +534,7 @@ class RecruiterEvaluation(models.Model):
         unique_together = ('interview_answer', 'recruiter')
     
     def __str__(self):
-        return f"Évaluation de {self.recruiter.username} - {self.interview_answer.candidate.username} - {self.interview_answer.question.campaign.title}"
+        return f"Évaluation de {self.recruiter.username} - Question {self.interview_answer.question.order} - {self.interview_answer.candidate.username}"
     
     @property
     def question(self):
@@ -554,7 +547,7 @@ class RecruiterEvaluation(models.Model):
         return self.interview_answer.question.campaign
     
     def calculate_overall_score(self):
-        """Calcule le score global basé sur les scores individuels"""
+        """Calcule le score global basé sur les scores individuels pour cette réponse"""
         scores = []
         if self.communication_score is not None:
             scores.append(self.communication_score)
@@ -568,7 +561,7 @@ class RecruiterEvaluation(models.Model):
         return None
     
     def get_overall_score_display(self):
-        """Retourne le score global formaté"""
+        """Retourne le score global formaté pour cette réponse"""
         score = self.overall_score or self.calculate_overall_score()
         if score is not None:
             return f"{score:.1f}/100"
@@ -740,6 +733,212 @@ class GlobalInterviewEvaluation(models.Model):
         super().save(*args, **kwargs)
 
 
+
+
+class AiEvaluation(models.Model):
+    """
+    Modèle pour stocker les évaluations automatiques par IA des réponses vidéo.
+    Chaque évaluation est liée à une réponse d'entretien spécifique.
+    """
+    # Relation avec la réponse d'entretien
+    interview_answer = models.OneToOneField(
+        InterviewAnswer,
+        on_delete=models.CASCADE,
+        related_name="ai_evaluation",
+        verbose_name="Réponse d'entretien"
+    )
+    
+    # Transcription de la vidéo
+    transcription = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Transcription",
+        help_text="Texte transcrit de la vidéo via Whisper"
+    )
+    transcription_language = models.CharField(
+        max_length=10,
+        blank=True,
+        null=True,
+        verbose_name="Langue détectée",
+        help_text="Langue détectée par Whisper (fr, en, etc.)"
+    )
+    transcription_confidence = models.FloatField(
+        blank=True,
+        null=True,
+        verbose_name="Confiance transcription",
+        help_text="Score de confiance de la transcription (0-1)"
+    )
+    
+    # Scores d'évaluation IA (0-10)
+    communication_score = models.FloatField(
+        blank=True,
+        null=True,
+        verbose_name="Score Communication IA",
+        help_text="Score de communication donné par l'IA (0-10)"
+    )
+    relevance_score = models.FloatField(
+        blank=True,
+        null=True,
+        verbose_name="Score Pertinence IA",
+        help_text="Score de pertinence donné par l'IA (0-10)"
+    )
+    confidence_score = models.FloatField(
+        blank=True,
+        null=True,
+        verbose_name="Score Confiance IA",
+        help_text="Score de confiance donné par l'IA (0-10)"
+    )
+    overall_ai_score = models.FloatField(
+        blank=True,
+        null=True,
+        verbose_name="Score Global IA",
+        help_text="Score global calculé par l'IA (0-10)"
+    )
+    
+    # Feedback textuel de l'IA
+    ai_feedback = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Feedback IA",
+        help_text="Commentaires détaillés générés par l'IA"
+    )
+    strengths = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Points forts identifiés",
+        help_text="Points forts identifiés par l'IA"
+    )
+    weaknesses = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Points faibles identifiés",
+        help_text="Axes d'amélioration identifiés par l'IA"
+    )
+    
+    # Métadonnées du traitement
+    ai_provider = models.CharField(
+        max_length=20,
+        choices=[
+            ('gemini', 'Google Gemini'),
+            ('openai', 'OpenAI'),
+            ('huggingface', 'Hugging Face'),
+            ('local', 'Modèle Local')
+        ],
+        verbose_name="Fournisseur IA",
+        help_text="Service IA utilisé pour l'évaluation"
+    )
+    processing_time = models.FloatField(
+        blank=True,
+        null=True,
+        verbose_name="Temps de traitement",
+        help_text="Durée totale du traitement en secondes"
+    )
+    
+    # Statut du traitement
+    STATUS_CHOICES = [
+        ('pending', 'En attente'),
+        ('processing', 'En cours de traitement'),
+        ('completed', 'Terminée'),
+        ('failed', 'Échec'),
+    ]
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+        verbose_name="Statut"
+    )
+    error_message = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Message d'erreur",
+        help_text="Détails de l'erreur en cas d'échec"
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Date de création")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Dernière mise à jour")
+    completed_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name="Date de completion"
+    )
+    
+    class Meta:
+        verbose_name = "Évaluation IA"
+        verbose_name_plural = "Évaluations IA"
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', 'created_at']),
+            models.Index(fields=['ai_provider', 'status']),
+        ]
+    
+    def __str__(self):
+        candidate = self.interview_answer.candidate.username
+        question_order = self.interview_answer.question.order
+        return f"Évaluation IA - {candidate} - Question {question_order}"
+    
+    @property
+    def candidate(self):
+        """Accès rapide au candidat"""
+        return self.interview_answer.candidate
+    
+    @property
+    def question(self):
+        """Accès rapide à la question"""
+        return self.interview_answer.question
+    
+    @property
+    def campaign(self):
+        """Accès rapide à la campagne"""
+        return self.interview_answer.question.campaign
+    
+    def calculate_overall_score(self):
+        """Calcule le score global basé sur les scores individuels"""
+        scores = []
+        if self.communication_score is not None:
+            scores.append(self.communication_score)
+        if self.relevance_score is not None:
+            scores.append(self.relevance_score)
+        if self.confidence_score is not None:
+            scores.append(self.confidence_score)
+        
+        if scores:
+            return sum(scores) / len(scores)
+        return None
+    
+    def get_score_grade(self, score):
+        """Retourne le grade correspondant au score (A, B, C, D, F)"""
+        if score is None:
+            return "N/A"
+        if score >= 8:
+            return "A"
+        elif score >= 6:
+            return "B"
+        elif score >= 4:
+            return "C"
+        elif score >= 2:
+            return "D"
+        else:
+            return "F"
+    
+    def get_overall_grade(self):
+        """Retourne le grade global"""
+        score = self.overall_ai_score or self.calculate_overall_score()
+        return self.get_score_grade(score)
+    
+    def mark_completed(self):
+        """Marque l'évaluation comme terminée"""
+        self.status = 'completed'
+        self.completed_at = timezone.now()
+        if self.overall_ai_score is None:
+            self.overall_ai_score = self.calculate_overall_score()
+        self.save(update_fields=['status', 'completed_at', 'overall_ai_score'])
+    
+    def mark_failed(self, error_message):
+        """Marque l'évaluation comme échouée"""
+        self.status = 'failed'
+        self.error_message = error_message
+        self.save(update_fields=['status', 'error_message'])
 
 
 # Import du modèle Notification

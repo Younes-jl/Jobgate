@@ -1,0 +1,262 @@
+/* Styles pour les composants d'évaluation IA */
+
+.ai-evaluation-container {
+  margin-bottom: 20px;
+}
+
+.ai-evaluation-card {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  margin-bottom: 15px;
+}
+
+.score-card {
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+
+.score-circle {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 10px auto;
+  color: white;
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.score-global {
+  width: 80px;
+  height: 80px;
+  font-size: 20px;
+}
+
+.feedback-card {
+  border-left: 4px solid #007bff;
+}
+
+.transcription-card {
+  border-left: 4px solid #28a745;
+}
+
+.transcription-text {
+  max-height: 200px;
+  overflow-y: auto;
+  background: #f8f9fa;
+  padding: 15px;
+  border-radius: 5px;
+  font-style: italic;
+  line-height: 1.6;
+}
+
+.ai-evaluation-summary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+
+.ai-evaluation-summary h5 {
+  margin-bottom: 15px;
+  font-weight: 600;
+}
+
+.score-progress {
+  margin-bottom: 10px;
+}
+
+.score-progress .progress {
+  height: 8px;
+  border-radius: 4px;
+}
+
+.ai-trigger-button {
+  background: linear-gradient(45deg, #007bff, #0056b3);
+  border: none;
+  padding: 12px 24px;
+  border-radius: 25px;
+  color: white;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.ai-trigger-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+}
+
+.ai-trigger-button:disabled {
+  opacity: 0.6;
+  transform: none;
+  box-shadow: none;
+}
+
+.evaluation-status-badge {
+  font-size: 0.8em;
+  padding: 4px 8px;
+}
+
+.ai-loading-animation {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+.ai-loading-animation .spinner-border {
+  width: 3rem;
+  height: 3rem;
+}
+
+.ai-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.ai-metric-card {
+  text-align: center;
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+  transition: transform 0.2s ease;
+}
+
+.ai-metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.ai-metric-value {
+  font-size: 2rem;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.ai-metric-label {
+  color: #6c757d;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ai-feedback-section {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+  margin: 15px 0;
+}
+
+.ai-feedback-section h6 {
+  color: #495057;
+  margin-bottom: 15px;
+  font-weight: 600;
+}
+
+.strengths-section {
+  border-left: 4px solid #28a745;
+  background: #d4edda;
+}
+
+.weaknesses-section {
+  border-left: 4px solid #ffc107;
+  background: #fff3cd;
+}
+
+.ai-evaluation-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid #e9ecef;
+}
+
+.ai-timestamp {
+  color: #6c757d;
+  font-size: 0.85rem;
+}
+
+.ai-provider-badge {
+  background: linear-gradient(45deg, #6f42c1, #e83e8c);
+  color: white;
+  border: none;
+}
+
+.transcription-toggle {
+  cursor: pointer;
+  user-select: none;
+}
+
+.transcription-confidence {
+  background: #e9ecef;
+  padding: 5px 10px;
+  border-radius: 15px;
+  font-size: 0.8rem;
+  display: inline-block;
+  margin-top: 10px;
+}
+
+/* Animations */
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.ai-evaluating .score-circle {
+  animation: pulse 2s infinite;
+}
+
+.ai-evaluation-complete {
+  animation: slideInUp 0.5s ease-out;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .ai-metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .score-circle {
+    width: 50px;
+    height: 50px;
+    font-size: 14px;
+  }
+  
+  .score-global {
+    width: 60px;
+    height: 60px;
+    font-size: 16px;
+  }
+  
+  .ai-evaluation-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+}
+
+@media (max-width: 576px) {
+  .ai-metrics-grid {
+    grid-template-columns: 1fr;
+  }
+}

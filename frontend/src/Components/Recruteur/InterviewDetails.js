@@ -360,6 +360,162 @@ const InterviewDetails = () => {
     }
   };
 
+  // Fonction pour déclencher l'évaluation IA
+  const handleAIEvaluation = async () => {
+    if (!currentAnswer) {
+      alert('❌ Erreur: Aucune réponse vidéo sélectionnée');
+      return;
+    }
+    
+    // Log pour debug - les URLs Cloudinary sont vérifiées côté backend
+    console.log('🔍 [FRONTEND DEBUG] Déclenchement évaluation IA pour réponse ID:', currentAnswer.id);
+    console.log('🔍 [FRONTEND DEBUG] currentAnswer.cloudinary_secure_url:', currentAnswer.cloudinary_secure_url);
+    console.log('🔍 [FRONTEND DEBUG] currentAnswer.cloudinary_url:', currentAnswer.cloudinary_url);
+    console.log('🔍 [FRONTEND DEBUG] Validation Cloudinary déléguée au backend');
+    
+    setAnalyzingAI(true);
+    try {
+      console.log('🚀 Démarrage évaluation IA pour réponse:', currentAnswer.id);
+      console.log('📹 URL vidéo:', currentAnswer.cloudinary_secure_url || currentAnswer.cloudinary_url);
+      
+      // Appel API pour déclencher l'évaluation IA
+      const response = await api.post('/interviews/ai-evaluations/evaluate_video/', {
+        interview_answer_id: currentAnswer.id,
+        force_reevaluation: true // Forcer une nouvelle évaluation
+      });
+      
+      console.log('✅ Réponse API évaluation IA:', response.data);
+      
+      if (response.data.evaluation_id) {
+        console.log('🔄 Polling pour évaluation ID:', response.data.evaluation_id);
+        pollAIEvaluationStatus(response.data.evaluation_id);
+      } else if (response.data.evaluation && response.data.evaluation.id) {
+        // Évaluation existante trouvée
+        console.log('📊 Évaluation existante trouvée:', response.data.evaluation);
+        const evaluation = response.data.evaluation;
+        setCurrentVideoAnalysis({
+          communication: Math.round(evaluation.communication_score * 10) || 0,
+          pertinence: Math.round(evaluation.relevance_score * 10) || 0,
+          confiance: Math.round(evaluation.confidence_score * 10) || 0,
+          feedback: evaluation.ai_feedback,
+          strengths: evaluation.strengths,
+          weaknesses: evaluation.weaknesses
+        });
+        setAnalyzingAI(false);
+      } else {
+        console.error('❌ Réponse API inattendue:', response.data);
+        throw new Error('Format de réponse API inattendu: ' + JSON.stringify(response.data));
+      }
+      
+    } catch (error) {
+      console.error('❌ Erreur complète:', error);
+      setAnalyzingAI(false);
+      
+      let errorMessage = 'Erreur inconnue';
+      
+      if (error.response) {
+        // Erreur HTTP avec réponse du serveur
+        console.error('📡 Status:', error.response.status);
+        console.error('📡 Data:', error.response.data);
+        
+        if (error.response.status === 404) {
+          errorMessage = 'Endpoint API non trouvé. Vérifiez que le backend est démarré.';
+        } else if (error.response.status === 500) {
+          errorMessage = 'Erreur serveur interne: ' + (error.response.data?.error || 'Erreur backend');
+        } else if (error.response.data?.error) {
+          errorMessage = error.response.data.error;
+        } else if (error.response.data?.details) {
+          errorMessage = 'Erreur de validation: ' + JSON.stringify(error.response.data.details);
+        }
+      } else if (error.request) {
+        // Pas de réponse du serveur
+        errorMessage = 'Impossible de contacter le serveur. Vérifiez que le backend est en ligne.';
+      } else {
+        // Erreur de configuration de la requête
+        errorMessage = error.message;
+      }
+      
+      alert('❌ Évaluation IA échouée:\n\n' + errorMessage + '\n\nVérifiez la console pour plus de détails.');
+    }
+  };
+
+  // Fonction pour vérifier le statut de l'évaluation IA
+  const pollAIEvaluationStatus = async (evaluationId) => {
+    const maxAttempts = 30; // 5 minutes max
+    let attempts = 0;
+
+    const checkStatus = async () => {
+      try {
+        console.log(`🔍 Vérification statut évaluation ${evaluationId} (tentative ${attempts + 1}/${maxAttempts})`);
+        
+        const response = await api.get(`/interviews/ai-evaluations/${evaluationId}/`);
+        const evaluation = response.data;
+        
+        console.log('📊 Statut actuel:', evaluation.status);
+
+        if (evaluation.status === 'completed') {
+          // Évaluation terminée avec succès
+          console.log('✅ Évaluation IA terminée avec succès:', evaluation);
+          setCurrentVideoAnalysis({
+            communication: Math.round(evaluation.communication_score * 10) || 0,
+            pertinence: Math.round(evaluation.relevance_score * 10) || 0,
+            confiance: Math.round(evaluation.confidence_score * 10) || 0,
+            feedback: evaluation.ai_feedback,
+            strengths: evaluation.strengths,
+            weaknesses: evaluation.weaknesses
+          });
+          setAnalyzingAI(false);
+          alert('✅ Évaluation IA terminée avec succès!\n\nScores obtenus:\n' +
+                `• Communication: ${Math.round(evaluation.communication_score * 10)}/100\n` +
+                `• Pertinence: ${Math.round(evaluation.relevance_score * 10)}/100\n` +
+                `• Confiance: ${Math.round(evaluation.confidence_score * 10)}/100`);
+          return;
+        } else if (evaluation.status === 'failed') {
+          // Évaluation échouée
+          console.error('❌ Évaluation IA échouée:', evaluation.error_message);
+          setAnalyzingAI(false);
+          alert('❌ Échec de l\'évaluation IA:\n\n' + 
+                (evaluation.error_message || 'Erreur inconnue') + 
+                '\n\nVérifiez les logs du serveur pour plus de détails.');
+          return;
+        } else if (evaluation.status === 'processing') {
+          console.log('⏳ Évaluation en cours de traitement...');
+        } else if (evaluation.status === 'pending') {
+          console.log('⏳ Évaluation en attente...');
+        }
+
+        // Continuer le polling si en cours
+        attempts++;
+        if (attempts < maxAttempts) {
+          setTimeout(checkStatus, 10000); // Vérifier toutes les 10 secondes
+        } else {
+          console.error('⏰ Timeout atteint pour l\'évaluation IA');
+          setAnalyzingAI(false);
+          alert('⏰ Timeout: L\'évaluation IA prend trop de temps.\n\n' +
+                'Cela peut être dû à:\n' +
+                '• Problème de connexion avec Gemini API\n' +
+                '• Fichier vidéo très volumineux\n' +
+                '• Surcharge du serveur\n\n' +
+                'Vérifiez l\'admin Django pour voir le statut de l\'évaluation.');
+        }
+      } catch (error) {
+        console.error('❌ Erreur lors de la vérification du statut:', error);
+        setAnalyzingAI(false);
+        
+        let errorMsg = 'Erreur lors de la vérification du statut';
+        if (error.response?.status === 404) {
+          errorMsg = 'Évaluation introuvable (ID: ' + evaluationId + ')';
+        } else if (error.response?.data?.error) {
+          errorMsg = error.response.data.error;
+        }
+        
+        alert('❌ ' + errorMsg + '\n\nVérifiez la console pour plus de détails.');
+      }
+    };
+
+    checkStatus();
+  };
+
   // Fonction pour charger l'évaluation existante pour une question
   const fetchQuestionEvaluation = async (answerId) => {
     if (!answerId) return;
@@ -772,6 +928,122 @@ const InterviewDetails = () => {
                     Voir les détails complets du candidat
                   </Button>
                 </div>
+              </Card.Body>
+            </Card>
+          )}
+
+          {/* AI Evaluation Section */}
+          {candidateAnswers.length > 0 && currentAnswer && (
+            <Card className="shadow-sm border-0 mb-4" style={{background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'}}>
+              <Card.Body className="text-white">
+                <div className="d-flex align-items-center justify-content-between mb-3">
+                  <div className="d-flex align-items-center">
+                    <i className="bi bi-robot me-2"></i>
+                    <h6 className="mb-0 fw-bold">Analyse IA Dynamique</h6>
+                  </div>
+                  <Button 
+                    variant="light" 
+                    size="sm"
+                    onClick={handleAIEvaluation}
+                    disabled={analyzingAI}
+                  >
+                    {analyzingAI ? (
+                      <>
+                        <Spinner size="sm" className="me-2" />
+                        Analyse...
+                      </>
+                    ) : (
+                      <>
+                        <i className="bi bi-play me-2"></i>
+                        Lancer l'Analyse IA
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <p className="mb-0 opacity-75">Évaluation intelligente basée sur Google Gemini</p>
+                
+                {currentVideoAnalysis && (
+                  <div className="mt-3 pt-3 border-top border-light border-opacity-25">
+                    <Row className="g-3">
+                      <Col xs={4} className="text-center">
+                        <div className="text-white-50 small mb-1">Communication</div>
+                        <div className="fw-bold fs-5">{currentVideoAnalysis.communication}</div>
+                      </Col>
+                      <Col xs={4} className="text-center">
+                        <div className="text-white-50 small mb-1">Pertinence</div>
+                        <div className="fw-bold fs-5">{currentVideoAnalysis.pertinence}</div>
+                      </Col>
+                      <Col xs={4} className="text-center">
+                        <div className="text-white-50 small mb-1">Confiance</div>
+                        <div className="fw-bold fs-5">{currentVideoAnalysis.confiance}</div>
+                      </Col>
+                    </Row>
+                    
+                    {/* Affichage du feedback détaillé */}
+                    {currentVideoAnalysis.feedback && (
+                      <div className="mt-3 pt-3 border-top border-light border-opacity-25">
+                        <h6 className="text-white mb-2">
+                          <i className="bi bi-chat-square-text me-2"></i>
+                          Analyse Détaillée
+                        </h6>
+                        <div className="bg-white bg-opacity-10 rounded p-3">
+                          <pre className="text-white-75 mb-0" style={{ 
+                            whiteSpace: 'pre-wrap', 
+                            fontFamily: 'inherit',
+                            fontSize: '0.9rem',
+                            lineHeight: '1.5'
+                          }}>
+                            {currentVideoAnalysis.feedback}
+                          </pre>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Affichage des forces et faiblesses */}
+                    {(currentVideoAnalysis.strengths || currentVideoAnalysis.weaknesses) && (
+                      <div className="mt-3">
+                        <Row className="g-3">
+                          {currentVideoAnalysis.strengths && (
+                            <Col md={6}>
+                              <div className="border border-2 border-success rounded p-3" style={{ 
+                                backgroundColor: 'rgba(25, 135, 84, 0.8)',
+                                boxShadow: '0 2px 8px rgba(25, 135, 84, 0.4)'
+                              }}>
+                                <h6 className="text-white mb-2 fw-bold" style={{ fontSize: '1rem' }}>
+                                  <i className="bi bi-check-circle-fill me-2"></i>
+                                  ✅ Points Forts
+                                </h6>
+                                <p className="text-white mb-0" style={{ 
+                                  fontSize: '0.95rem',
+                                  lineHeight: '1.4',
+                                  fontWeight: '500'
+                                }}>{currentVideoAnalysis.strengths}</p>
+                              </div>
+                            </Col>
+                          )}
+                          {currentVideoAnalysis.weaknesses && (
+                            <Col md={6}>
+                              <div className="border border-2 border-danger rounded p-3" style={{ 
+                                backgroundColor: 'rgba(220, 53, 69, 0.8)',
+                                boxShadow: '0 2px 8px rgba(220, 53, 69, 0.4)'
+                              }}>
+                                <h6 className="text-white mb-2 fw-bold" style={{ fontSize: '1rem' }}>
+                                  <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                                  ⚠️ Axes d'Amélioration
+                                </h6>
+                                <p className="text-white mb-0" style={{ 
+                                  fontSize: '0.95rem',
+                                  lineHeight: '1.4',
+                                  fontWeight: '500'
+                                }}>{currentVideoAnalysis.weaknesses}</p>
+                              </div>
+                            </Col>
+                          )}
+                        </Row>
+                      </div>
+                    )}
+                  </div>
+                )}
               </Card.Body>
             </Card>
           )}

@@ -26,32 +26,6 @@ class AIInterviewQuestionGenerator:
         )
         self.use_gemini = getattr(settings, 'USE_GEMINI', True) or getattr(settings, 'USE_GOOGLE_GEMINI', True)
         
-        # Banque de questions comportementales statiques
-        self.static_behavioral_questions = [
-            # TRAVAIL EN ÉQUIPE
-            "Parle-moi d'une fois où tu as dû collaborer avec une équipe difficile. Comment as-tu géré la situation ?",
-            "Donne un exemple d'un projet où ton rôle était crucial pour la réussite collective.",
-            
-            # GESTION DES CONFLITS
-            "Raconte une situation où tu n'étais pas d'accord avec ton supérieur ou un collègue. Comment as-tu réagi ?",
-            "Décris un conflit que tu as aidé à résoudre.",
-            
-            # PRISE D'INITIATIVE
-            "Donne un exemple où tu as pris une décision sans attendre d'instructions.",
-            "Parle-moi d'une amélioration que tu as proposée et mise en place dans ton travail.",
-            
-            # GESTION DU STRESS & DES PRIORITÉS
-            "Raconte une expérience où tu as dû gérer plusieurs tâches urgentes en même temps.",
-            "Comment as-tu réagi dans une situation de forte pression avec peu de temps ?",
-            
-            # RÉSOLUTION DE PROBLÈME
-            "Donne un exemple d'un problème complexe que tu as résolu. Quelle a été ton approche ?",
-            "Décris une situation où tu n'avais pas toutes les informations nécessaires mais tu as dû agir rapidement.",
-            
-            # ADAPTABILITÉ & APPRENTISSAGE
-            "Parle-moi d'une fois où tu as dû apprendre une nouvelle compétence rapidement pour accomplir une mission.",
-            "Comment t'es-tu adapté à un changement imprévu au travail ?"
-        ]
         
         try:
             # Configuration Gemini
@@ -143,9 +117,12 @@ class AIInterviewQuestionGenerator:
         # Construire la liste finale des questions (sans question obligatoire car elle existe déjà)
         final_questions = []
         
-        # Ajouter les questions comportementales statiques si demandées
+        # Générer les questions comportementales avec l'IA si demandées
         if behavioral_count > 0:
-            behavioral_questions = self._get_static_behavioral_questions(behavioral_count)
+            behavioral_questions = self._generate_behavioral_questions(
+                offer_title, offer_description, behavioral_count, 
+                difficulty, requirements
+            )
             final_questions.extend(behavioral_questions)
         
         # Générer les questions techniques avec l'IA si nécessaire
@@ -159,33 +136,81 @@ class AIInterviewQuestionGenerator:
         logger.info(f"✅ {len(final_questions)} questions générées au total")
         return final_questions
     
-    def _get_static_behavioral_questions(self, count: int) -> List[Dict[str, Any]]:
-        """Sélectionne aléatoirement des questions comportementales statiques"""
-        logger.info(f"📋 Sélection de {count} questions comportementales statiques")
+    
+    def _generate_behavioral_questions(self, offer_title: str, offer_description: str, 
+                                     count: int, difficulty: str, requirements: str) -> List[Dict[str, Any]]:
+        """Génère des questions comportementales avec l'IA"""
+        logger.info(f"🤖 Génération de {count} questions comportementales avec IA")
         
-        # Sélection aléatoire sans répétition
-        selected_questions = random.sample(self.static_behavioral_questions, min(count, len(self.static_behavioral_questions)))
+        # Vérifier si l'IA est disponible
+        if not self.use_gemini or not self.api_key or not self.model:
+            logger.error("❌ IA indisponible - impossible de générer des questions comportementales")
+            raise ValueError("L'IA Gemini est requise pour générer des questions comportementales. Vérifiez votre configuration API.")
         
-        behavioral_questions = []
-        for i, question_text in enumerate(selected_questions, 2):  # Start at 2 (after mandatory)
-            question = {
-                "question": question_text,
-                "type": "comportementale",
-                "difficulty": "medium",
-                "expected_duration": 120,
-                "skills_assessed": ["comportement", "expérience", "soft_skills"],
-                "order": i,
-                "generated_by": "static_behavioral"
-            }
-            behavioral_questions.append(question)
-            logger.info(f"✅ Question comportementale {i}: {question_text[:50]}...")
+        prompt = f"""Tu es un expert RH spécialisé dans les entretiens comportementaux.
+
+POSTE: {offer_title}
+DESCRIPTION: {offer_description}
+EXIGENCES: {requirements}
+NIVEAU: {difficulty}
+
+GÉNÈRE EXACTEMENT {count} QUESTIONS COMPORTEMENTALES COURTES (1-2 lignes max).
+
+FORMAT JSON STRICT:
+[
+  {{
+    "question": "Question comportementale spécifique au poste",
+    "type": "comportementale"
+  }}
+]
+
+EXIGENCES:
+- Questions COMPORTEMENTALES uniquement (soft skills, expériences, situations)
+- Adaptées au poste et au secteur
+- Courtes et précises
+- Niveau {difficulty}
+- Focus sur leadership, communication, résolution de problèmes, travail d'équipe
+"""
         
-        return behavioral_questions
+        try:
+            logger.info("🔄 Génération questions comportementales avec Gemini...")
+            response = self.model.generate_content(prompt)
+            
+            if not response or not response.text:
+                raise ValueError("Réponse vide de Gemini")
+            
+            questions_data = self._parse_json_response(response.text)
+            
+            behavioral_questions = []
+            for i, q_data in enumerate(questions_data[:count]):
+                question = {
+                    "question": q_data.get('question', ''),
+                    "type": "comportementale",
+                    "difficulty": "medium",
+                    "expected_duration": 120,
+                    "skills_assessed": ["communication", "leadership", "problem_solving"],
+                    "order": i + 1,
+                    "generated_by": "ai_behavioral"
+                }
+                behavioral_questions.append(question)
+                logger.info(f"✅ Question comportementale {i + 1}: {question['question'][:50]}...")
+            
+            return behavioral_questions
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur génération questions comportementales: {e}")
+            # Relancer l'erreur sans fallback - IA obligatoire
+            raise ValueError(f"Impossible de générer des questions comportementales avec l'IA: {str(e)}")
     
     def _generate_technical_questions(self, offer_title: str, offer_description: str, 
                                     count: int, difficulty: str, requirements: str) -> List[Dict[str, Any]]:
         """Génère uniquement des questions techniques avec l'IA"""
         logger.info(f"🤖 Génération de {count} questions techniques avec IA")
+        
+        # Vérifier si l'IA est disponible
+        if not self.use_gemini or not self.api_key or not self.model:
+            logger.error("❌ IA indisponible - impossible de générer des questions techniques")
+            raise ValueError("L'IA Gemini est requise pour générer des questions techniques. Vérifiez votre configuration API.")
         
         # Prompt spécialisé pour questions techniques uniquement
         prompt = f"""Tu es un expert RH spécialisé dans les entretiens techniques.
@@ -243,8 +268,8 @@ EXIGENCES:
             
         except Exception as e:
             logger.error(f"❌ Erreur génération questions techniques: {e}")
-            # Fallback: questions techniques génériques
-            return self._create_fallback_technical_questions(count, offer_title)
+            # Relancer l'erreur sans fallback - IA obligatoire
+            raise ValueError(f"Impossible de générer des questions techniques avec l'IA: {str(e)}")
     
     def _parse_json_response(self, response_text: str) -> List[Dict]:
         """Parse la réponse JSON de l'IA"""
@@ -268,30 +293,105 @@ EXIGENCES:
             logger.error(f"❌ Erreur parsing JSON: {e}")
             logger.error(f"Réponse brute: {response_text[:200]}...")
             raise ValueError("Format JSON invalide dans la réponse de l'IA")
-    
-    def _create_fallback_technical_questions(self, count: int, offer_title: str) -> List[Dict[str, Any]]:
-        """Crée des questions techniques de fallback"""
-        fallback_questions = [
-            "Quelles sont les principales technologies que vous maîtrisez pour ce poste ?",
-            "Comment abordez-vous la résolution d'un problème technique complexe ?",
-            "Décrivez votre expérience avec les outils mentionnés dans l'offre.",
-            "Quelles sont vos méthodes pour rester à jour techniquement ?",
-            "Comment gérez-vous la qualité du code dans vos projets ?"
-        ]
+
+
+    def _get_static_technical_questions(self, count: int, offer_title: str) -> List[Dict[str, Any]]:
+        """Génère des questions techniques statiques basées sur le titre du poste"""
+        logger.info(f"📋 Génération de {count} questions techniques statiques pour: {offer_title}")
         
+        # Questions techniques par domaine
+        technical_questions_by_domain = {
+            # Développement Web
+            "développeur": [
+                "Expliquez la différence entre les méthodes GET et POST en HTTP.",
+                "Comment optimisez-vous les performances d'une application web ?",
+                "Décrivez votre approche pour sécuriser une API REST.",
+                "Quelles sont les bonnes pratiques pour la gestion des erreurs en programmation ?",
+                "Comment gérez-vous les versions de votre code et les déploiements ?"
+            ],
+            "frontend": [
+                "Expliquez le concept de Virtual DOM et ses avantages.",
+                "Comment optimisez-vous le temps de chargement d'une page web ?",
+                "Décrivez votre approche pour rendre une application responsive.",
+                "Quelles sont vos méthodes de test pour les interfaces utilisateur ?",
+                "Comment gérez-vous l'état dans une application JavaScript moderne ?"
+            ],
+            "backend": [
+                "Expliquez les principes d'une architecture microservices.",
+                "Comment concevez-vous une base de données pour une application scalable ?",
+                "Décrivez votre approche pour la gestion des sessions utilisateur.",
+                "Quelles sont vos stratégies pour optimiser les requêtes de base de données ?",
+                "Comment implémentez-vous la sécurité dans une API ?"
+            ],
+            # Data Science / IA
+            "data": [
+                "Expliquez la différence entre apprentissage supervisé et non supervisé.",
+                "Comment évaluez-vous la performance d'un modèle de machine learning ?",
+                "Décrivez votre processus de nettoyage et préparation des données.",
+                "Quelles sont vos méthodes pour éviter le surapprentissage ?",
+                "Comment choisissez-vous l'algorithme approprié pour un problème donné ?"
+            ],
+            # DevOps / Infrastructure
+            "devops": [
+                "Expliquez les principes de l'intégration continue (CI/CD).",
+                "Comment gérez-vous la scalabilité d'une infrastructure cloud ?",
+                "Décrivez votre approche pour la surveillance et le monitoring.",
+                "Quelles sont vos stratégies de sauvegarde et récupération ?",
+                "Comment automatisez-vous les déploiements d'applications ?"
+            ],
+            # Cybersécurité
+            "sécurité": [
+                "Expliquez les principales vulnérabilités web (OWASP Top 10).",
+                "Comment implémentez-vous l'authentification multi-facteurs ?",
+                "Décrivez votre approche pour sécuriser les communications réseau.",
+                "Quelles sont vos méthodes de détection d'intrusion ?",
+                "Comment gérez-vous les incidents de sécurité ?"
+            ],
+            # Questions génériques techniques
+            "générique": [
+                "Décrivez votre processus de résolution d'un bug complexe.",
+                "Comment restez-vous à jour avec les nouvelles technologies ?",
+                "Expliquez votre approche pour documenter votre code.",
+                "Quelles sont vos méthodes de test et validation ?",
+                "Comment collaborez-vous avec une équipe technique ?"
+            ]
+        }
+        
+        # Déterminer le domaine basé sur le titre de l'offre
+        offer_lower = offer_title.lower()
+        selected_domain = "générique"  # Par défaut
+        
+        for domain, questions in technical_questions_by_domain.items():
+            if domain in offer_lower:
+                selected_domain = domain
+                break
+        
+        # Sélectionner les questions appropriées
+        available_questions = technical_questions_by_domain[selected_domain]
+        selected_questions = available_questions[:count] if count <= len(available_questions) else available_questions
+        
+        # Si pas assez de questions dans le domaine, compléter avec des génériques
+        if len(selected_questions) < count:
+            remaining_needed = count - len(selected_questions)
+            generic_questions = technical_questions_by_domain["générique"][:remaining_needed]
+            selected_questions.extend(generic_questions)
+        
+        # Formater les questions
         technical_questions = []
-        for i in range(min(count, len(fallback_questions))):
+        for i, question_text in enumerate(selected_questions):
             question = {
-                "question": fallback_questions[i],
+                "question": question_text,
                 "type": "technique",
                 "difficulty": "medium",
                 "expected_duration": 180,
-                "skills_assessed": ["technique"],
+                "skills_assessed": ["technique", selected_domain],
                 "order": i + 2,
-                "generated_by": "fallback_technical"
+                "generated_by": f"static_technical_{selected_domain}"
             }
             technical_questions.append(question)
+            logger.info(f"✅ Question technique statique {i + 2}: {question_text[:50]}...")
         
+        logger.info(f"✅ {len(technical_questions)} questions techniques statiques générées (domaine: {selected_domain})")
         return technical_questions
 
 

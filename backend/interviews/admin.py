@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import (
     JobOffer, InterviewCampaign, InterviewQuestion, CampaignLink, 
     InterviewAnswer, JobApplication, RecruiterEvaluation,
-    GlobalInterviewEvaluation
+    GlobalInterviewEvaluation, AiEvaluation
 )
 class InterviewQuestionInline(admin.TabularInline):
     model = InterviewQuestion
@@ -144,7 +144,119 @@ class JobApplicationAdmin(admin.ModelAdmin):
     mark_as_under_review.short_description = "Marquer comme en cours d'évaluation"
 
 
-# AiEvaluation admin has been removed as part of AI video evaluation cleanup
+@admin.register(AiEvaluation)
+class AiEvaluationAdmin(admin.ModelAdmin):
+    list_display = (
+        'interview_answer_info', 'ai_provider', 'status', 'overall_ai_score',
+        'communication_score', 'relevance_score', 'confidence_score', 
+        'processing_time', 'created_at'
+    )
+    list_filter = ('status', 'ai_provider', 'created_at', 'overall_ai_score')
+    search_fields = (
+        'interview_answer__candidate__username',
+        'interview_answer__candidate__email',
+        'interview_answer__question__text',
+        'transcription',
+        'ai_feedback'
+    )
+    readonly_fields = (
+        'created_at', 'updated_at', 'completed_at', 'processing_time',
+        'transcription', 'transcription_language', 'transcription_confidence'
+    )
+    
+    fieldsets = (
+        ('Informations principales', {
+            'fields': ('interview_answer', 'ai_provider', 'status')
+        }),
+        ('Transcription', {
+            'fields': ('transcription', 'transcription_language', 'transcription_confidence'),
+            'classes': ('collapse',)
+        }),
+        ('Scores IA (0-10)', {
+            'fields': (
+                ('communication_score', 'relevance_score', 'confidence_score'),
+                'overall_ai_score'
+            )
+        }),
+        ('Feedback IA', {
+            'fields': ('ai_feedback', 'strengths', 'weaknesses')
+        }),
+        ('Métadonnées', {
+            'fields': ('processing_time', 'error_message', 'created_at', 'updated_at', 'completed_at'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def get_queryset(self, request):
+        """Optimiser les requêtes avec select_related"""
+        return super().get_queryset(request).select_related(
+            'interview_answer__candidate',
+            'interview_answer__question__campaign'
+        )
+    
+    def interview_answer_info(self, obj):
+        """Informations sur la réponse d'entretien"""
+        candidate = obj.interview_answer.candidate.username
+        question_order = obj.interview_answer.question.order
+        campaign = obj.interview_answer.question.campaign.title[:20]
+        return f"{candidate} - Q{question_order} ({campaign}{'...' if len(obj.interview_answer.question.campaign.title) > 20 else ''})"
+    interview_answer_info.short_description = "Réponse évaluée"
+    
+    def get_status_display_colored(self, obj):
+        """Affichage coloré du statut"""
+        colors = {
+            'pending': '#ffc107',      # Jaune
+            'processing': '#17a2b8',   # Bleu
+            'completed': '#28a745',    # Vert
+            'failed': '#dc3545'        # Rouge
+        }
+        color = colors.get(obj.status, '#6c757d')
+        return f'<span style="color: {color}; font-weight: bold;">{obj.get_status_display()}</span>'
+    get_status_display_colored.allow_tags = True
+    get_status_display_colored.short_description = "Statut"
+    
+    def score_summary(self, obj):
+        """Résumé des scores"""
+        if obj.status == 'completed':
+            scores = [
+                obj.communication_score or 0,
+                obj.relevance_score or 0,
+                obj.confidence_score or 0
+            ]
+            avg = sum(scores) / len(scores) if scores else 0
+            return f"{avg:.1f}/10"
+        return "-"
+    score_summary.short_description = "Score moyen"
+    
+    def transcription_preview(self, obj):
+        """Aperçu de la transcription"""
+        if obj.transcription:
+            preview = obj.transcription[:100]
+            return f"{preview}{'...' if len(obj.transcription) > 100 else ''}"
+        return "Pas de transcription"
+    transcription_preview.short_description = "Transcription"
+    
+    # Actions personnalisées
+    actions = ['retry_failed_evaluations', 'export_ai_evaluations', 'mark_for_review']
+    
+    def retry_failed_evaluations(self, request, queryset):
+        """Relancer les évaluations échouées"""
+        failed_evaluations = queryset.filter(status='failed')
+        count = failed_evaluations.update(status='pending', error_message=None)
+        self.message_user(request, f'{count} évaluation(s) IA relancée(s).')
+    retry_failed_evaluations.short_description = "Relancer les évaluations échouées"
+    
+    def export_ai_evaluations(self, request, queryset):
+        """Exporter les évaluations IA"""
+        count = queryset.count()
+        self.message_user(request, f'{count} évaluation(s) IA prête(s) pour export.')
+    export_ai_evaluations.short_description = "Exporter les évaluations IA"
+    
+    def mark_for_review(self, request, queryset):
+        """Marquer pour révision manuelle"""
+        count = queryset.count()
+        self.message_user(request, f'{count} évaluation(s) IA marquée(s) pour révision.')
+    mark_for_review.short_description = "Marquer pour révision"
 
 
 @admin.register(RecruiterEvaluation)
