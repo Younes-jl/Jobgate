@@ -74,6 +74,7 @@ const InterviewDetails = () => {
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [analyzingAI, setAnalyzingAI] = useState(false);
   const [currentVideoAnalysis, setCurrentVideoAnalysis] = useState(null);
+  const [hasExistingAIEvaluation, setHasExistingAIEvaluation] = useState(false);
   
   const videoRef = useRef(null);
 
@@ -233,6 +234,9 @@ const InterviewDetails = () => {
         
         // Charger l'évaluation existante pour cette réponse
         fetchQuestionEvaluation(currentAnswer.id);
+        
+        // Charger l'évaluation IA existante pour cette réponse
+        fetchAIEvaluation(currentAnswer.id);
       }
     }
   }, [currentQuestionIndex, candidateAnswers]);
@@ -547,6 +551,42 @@ const InterviewDetails = () => {
       }
     } catch (error) {
       console.error('Erreur lors du chargement de l\'évaluation:', error);
+    }
+  };
+
+  // Fonction pour charger l'évaluation IA existante pour une question
+  const fetchAIEvaluation = async (answerId) => {
+    if (!answerId) return;
+    
+    try {
+      console.log('🔍 Recherche évaluation IA existante pour réponse:', answerId);
+      const response = await api.get(`/interviews/ai-evaluations/by_answer/?answer_id=${answerId}`);
+      
+      if (response.data.has_evaluation && response.data.evaluation) {
+        const evaluation = response.data.evaluation;
+        console.log('✅ Évaluation IA trouvée:', evaluation);
+        
+        // Convertir les scores de 0-10 vers 0-100 pour l'affichage
+        setCurrentVideoAnalysis({
+          communication: Math.round(evaluation.communication_score * 10) || 0,
+          pertinence: Math.round(evaluation.relevance_score * 10) || 0,
+          confiance: Math.round(evaluation.confidence_score * 10) || 0,
+          feedback: evaluation.ai_feedback,
+          strengths: evaluation.strengths,
+          weaknesses: evaluation.weaknesses
+        });
+        
+        setHasExistingAIEvaluation(true);
+        console.log('📊 Évaluation IA chargée et affichée automatiquement');
+      } else {
+        console.log('ℹ️ Aucune évaluation IA trouvée pour cette réponse');
+        setCurrentVideoAnalysis(null);
+        setHasExistingAIEvaluation(false);
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement de l\'évaluation IA:', error);
+      setCurrentVideoAnalysis(null);
+      setHasExistingAIEvaluation(false);
     }
   };
 
@@ -941,24 +981,51 @@ const InterviewDetails = () => {
                     <i className="bi bi-robot me-2"></i>
                     <h6 className="mb-0 fw-bold">Analyse IA Dynamique</h6>
                   </div>
-                  <Button 
-                    variant="light" 
-                    size="sm"
-                    onClick={handleAIEvaluation}
-                    disabled={analyzingAI}
-                  >
-                    {analyzingAI ? (
-                      <>
-                        <Spinner size="sm" className="me-2" />
-                        Analyse...
-                      </>
-                    ) : (
-                      <>
-                        <i className="bi bi-play me-2"></i>
-                        Lancer l'Analyse IA
-                      </>
-                    )}
-                  </Button>
+                  {!hasExistingAIEvaluation ? (
+                    <Button 
+                      variant="light" 
+                      size="sm"
+                      onClick={handleAIEvaluation}
+                      disabled={analyzingAI}
+                    >
+                      {analyzingAI ? (
+                        <>
+                          <Spinner size="sm" className="me-2" />
+                          Analyse...
+                        </>
+                      ) : (
+                        <>
+                          <i className="bi bi-play me-2"></i>
+                          Lancer l'Analyse IA
+                        </>
+                      )}
+                    </Button>
+                  ) : (
+                    <div className="d-flex align-items-center">
+                      <Badge bg="success" className="me-2">
+                        <i className="bi bi-check-circle me-1"></i>
+                        Analysé
+                      </Badge>
+                      <Button 
+                        variant="outline-light" 
+                        size="sm"
+                        onClick={handleAIEvaluation}
+                        disabled={analyzingAI}
+                      >
+                        {analyzingAI ? (
+                          <>
+                            <Spinner size="sm" className="me-2" />
+                            Re-analyse...
+                          </>
+                        ) : (
+                          <>
+                            <i className="bi bi-arrow-clockwise me-2"></i>
+                            Relancer l'Analyse
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 <p className="mb-0 opacity-75">Évaluation intelligente basée sur Google Gemini</p>
                 

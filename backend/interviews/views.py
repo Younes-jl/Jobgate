@@ -2217,5 +2217,61 @@ class AiEvaluationViewSet(ModelViewSet):
             return Response({
                 'error': 'Campagne d\'entretien introuvable'
             }, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=False, methods=['get'])
+    def by_answer(self, request):
+        """
+        Récupère l'évaluation IA existante pour une réponse d'entretien spécifique.
+        
+        Query params:
+        - answer_id: ID de la réponse d'entretien
+        """
+        answer_id = request.query_params.get('answer_id')
+        
+        if not answer_id:
+            return Response({
+                'error': 'answer_id est requis'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            answer = InterviewAnswer.objects.select_related(
+                'question__campaign__job_offer',
+                'candidate'
+            ).get(id=answer_id)
+            
+            # Vérifier les permissions
+            if request.user.role == 'RECRUTEUR':
+                if answer.question.campaign.job_offer.recruiter != request.user:
+                    return Response({
+                        'error': 'Accès non autorisé à cette réponse'
+                    }, status=status.HTTP_403_FORBIDDEN)
+            elif request.user.role == 'CANDIDAT':
+                if answer.candidate != request.user:
+                    return Response({
+                        'error': 'Accès non autorisé à cette réponse'
+                    }, status=status.HTTP_403_FORBIDDEN)
+            
+            try:
+                ai_evaluation = AiEvaluation.objects.get(interview_answer=answer)
+                serializer = self.get_serializer(ai_evaluation)
+                
+                return Response({
+                    'evaluation': serializer.data,
+                    'has_evaluation': True,
+                    'status': ai_evaluation.status
+                }, status=status.HTTP_200_OK)
+                
+            except AiEvaluation.DoesNotExist:
+                return Response({
+                    'message': 'Aucune évaluation IA trouvée pour cette réponse',
+                    'evaluation': None,
+                    'has_evaluation': False,
+                    'status': None
+                }, status=status.HTTP_200_OK)
+            
+        except InterviewAnswer.DoesNotExist:
+            return Response({
+                'error': 'Réponse d\'entretien introuvable'
+            }, status=status.HTTP_404_NOT_FOUND)
 
 
