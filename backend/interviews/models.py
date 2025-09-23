@@ -255,6 +255,14 @@ class CampaignLink(models.Model):
     - Compte les usages (par défaut usage unique)
     """
 
+    # Statuts possibles pour l'entretien
+    STATUS_CHOICES = [
+        ('active', 'Actif'),
+        ('in_progress', 'En cours'),
+        ('completed', 'Terminé'),
+        ('abandoned', 'Abandonné'),
+    ]
+
     campaign = models.ForeignKey(
         InterviewCampaign,
         on_delete=models.CASCADE,
@@ -281,6 +289,19 @@ class CampaignLink(models.Model):
     max_uses = models.PositiveIntegerField(default=1, verbose_name="Nombre d'usages autorisés")
     uses_count = models.PositiveIntegerField(default=0, verbose_name="Nombre d'usages consommés")
     revoked = models.BooleanField(default=False, verbose_name="Révoqué")
+    
+    # Nouveau champ pour le statut de l'entretien
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='active',
+        verbose_name="Statut de l'entretien"
+    )
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Date de completion"
+    )
 
     class Meta:
         verbose_name = "Lien de campagne"
@@ -338,6 +359,10 @@ class CampaignLink(models.Model):
         if self.is_expired:
             return False
         
+        # Vérifier le statut de l'entretien
+        if self.status in ['completed', 'abandoned']:
+            return False
+        
         # Vérifier si le candidat a déjà passé l'entretien pour cette offre
         if self.candidate:
             # Vérifier s'il existe déjà des réponses pour cette campagne/candidat
@@ -359,6 +384,26 @@ class CampaignLink(models.Model):
         self.used_at = timezone.now()
         if commit:
             self.save(update_fields=["uses_count", "used_at"])
+    
+    def mark_in_progress(self, commit: bool = True):
+        """Marque l'entretien comme en cours."""
+        self.status = 'in_progress'
+        if commit:
+            self.save(update_fields=["status"])
+    
+    def mark_completed(self, commit: bool = True):
+        """Marque l'entretien comme terminé."""
+        self.status = 'completed'
+        self.completed_at = timezone.now()
+        if commit:
+            self.save(update_fields=["status", "completed_at"])
+    
+    def mark_abandoned(self, commit: bool = True):
+        """Marque l'entretien comme abandonné."""
+        self.status = 'abandoned'
+        self.completed_at = timezone.now()
+        if commit:
+            self.save(update_fields=["status", "completed_at"])
 
     # Helpers d'URL
     def get_start_path(self) -> str:
@@ -397,6 +442,7 @@ class JobApplication(models.Model):
     """
     STATUS_CHOICES = [
         ('pending', 'En cours'),
+        ('technical_interview', 'Entretien technique programmé'),
         ('accepted', 'Acceptées'),
         ('rejected', 'Refusées'),
     ]

@@ -191,6 +191,26 @@ const JobApplicationsList = ({ jobOfferId }) => {
     }
   };
 
+  // Fonction pour afficher le statut de l'entretien
+  const getInterviewStatusBadge = (campaignLink) => {
+    if (!campaignLink) {
+      return <Badge bg="light" text="dark">Pas d'entretien</Badge>;
+    }
+
+    switch (campaignLink.status) {
+      case 'active':
+        return <Badge bg="info">Lien actif</Badge>;
+      case 'in_progress':
+        return <Badge bg="primary">En cours</Badge>;
+      case 'completed':
+        return <Badge bg="success">Terminé</Badge>;
+      case 'abandoned':
+        return <Badge bg="danger">Abandonné</Badge>;
+      default:
+        return <Badge bg="secondary">Inconnu</Badge>;
+    }
+  };
+
   const filteredApplications = applications.filter(app => {
     if (filter === 'all') return true;
     return app.status === filter;
@@ -266,6 +286,7 @@ const JobApplicationsList = ({ jobOfferId }) => {
                 <th className="py-3">Date de candidature</th>
                 <th className="py-3">Statut</th>
                 <th className="py-3">Invitation</th>
+                <th className="py-3">Entretien</th>
                 <th className="py-3 actions-column">Actions</th>
               </tr>
             </thead>
@@ -277,6 +298,7 @@ const JobApplicationsList = ({ jobOfferId }) => {
                   <td>{formatDate(application.created_at)}</td>
                   <td>{getStatusBadge(application.status)}</td>
                   <td>{getInvitationStatus(application.status)}</td>
+                  <td>{getInterviewStatusBadge(application.campaign_link)}</td>
                   <td>
                     <div className="actions-row">
                       {/* 1) Ligne des boutons d'action */}

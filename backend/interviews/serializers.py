@@ -99,12 +99,13 @@ class JobApplicationSerializer(serializers.ModelSerializer):
     status_display = serializers.SerializerMethodField()
     candidate = UserSerializer(read_only=True)  # Utiliser UserSerializer pour inclure plus de détails
     job_offer = JobOfferSerializer(read_only=True)  # Inclure les détails complets de l'offre
+    campaign_link = serializers.SerializerMethodField()  # Ajouter les infos du lien de campagne
     
     class Meta:
         model = JobApplication
         fields = ['id', 'job_offer', 'candidate', 'status', 'lettre_motivation', 'filiere',
-                  'created_at', 'updated_at', 'candidate_name', 'job_title', 'status_display']
-        read_only_fields = ['id', 'created_at', 'updated_at', 'candidate_name', 'job_title', 'status_display']
+                  'created_at', 'updated_at', 'candidate_name', 'job_title', 'status_display', 'campaign_link']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'candidate_name', 'job_title', 'status_display', 'campaign_link']
     
     def get_candidate_name(self, obj):
         return f"{obj.candidate.first_name} {obj.candidate.last_name}" if obj.candidate.first_name else obj.candidate.username
@@ -114,6 +115,33 @@ class JobApplicationSerializer(serializers.ModelSerializer):
     
     def get_status_display(self, obj):
         return dict(JobApplication.STATUS_CHOICES)[obj.status]
+    
+    def get_campaign_link(self, obj):
+        """Récupérer les informations du lien de campagne pour cette candidature"""
+        try:
+            # Chercher une campagne active pour cette offre
+            campaign = obj.job_offer.campaigns.filter(active=True).first()
+            if not campaign:
+                return None
+            
+            # Chercher le lien de campagne pour ce candidat et cette campagne
+            campaign_link = CampaignLink.objects.filter(
+                campaign=campaign,
+                candidate=obj.candidate
+            ).first()
+            
+            if campaign_link:
+                return {
+                    'id': campaign_link.id,
+                    'status': campaign_link.status,
+                    'created_at': campaign_link.created_at,
+                    'completed_at': campaign_link.completed_at,
+                    'expires_at': campaign_link.expires_at,
+                    'revoked': campaign_link.revoked
+                }
+            return None
+        except Exception:
+            return None
     
     def create(self, validated_data):
         # Assurez-vous que le candidat est bien celui qui est connecté

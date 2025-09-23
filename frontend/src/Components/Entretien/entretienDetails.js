@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
-import { Container, Row, Col, Card, Badge, Button, Alert, Spinner } from 'react-bootstrap';
+import { Container, Row, Col, Card, Badge, Button, Alert, Spinner, Modal } from 'react-bootstrap';
 import api from '../../services/api';
 import JobGateLogo from '../Common/JobGateLogo';
 
@@ -28,6 +28,7 @@ const EntretienPage = () => {
   const [mediaRecorder, setMediaRecorder] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false); // État pour le loader de traitement
+  const [showExitConfirm, setShowExitConfirm] = useState(false); // État pour la confirmation de sortie
 
   // Fonction pour formater la description de l'offre
   const formatJobDescription = (description) => {
@@ -331,16 +332,77 @@ const EntretienPage = () => {
         return nextIndex;
       } else {
         console.log('Fin de l\'entretien - toutes les questions terminées');
-        // Fin de l'entretien - fermer la caméra et afficher message de fin
-        if (videoStream) {
-          videoStream.getTracks().forEach(track => track.stop());
-        }
-        setVideoStream(null);
-        setRecordingStage(false);
-        setInterviewStarted(true); // Afficher le message de fin
+        // Marquer l'entretien comme terminé avec succès
+        completeInterview();
         return prevIndex;
       }
     });
+  };
+
+  // Fonction pour terminer l'entretien avec succès
+  const completeInterview = async () => {
+    try {
+      // Appeler l'API pour marquer l'entretien comme terminé
+      await api.post(`/interviews/campaign-links/${token}/complete_interview/`);
+      
+      // Fermer la caméra et afficher message de fin
+      if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
+      }
+      setVideoStream(null);
+      setRecordingStage(false);
+      setInterviewStarted(true); // Afficher le message de fin
+    } catch (error) {
+      console.error('Erreur lors de la finalisation de l\'entretien:', error);
+      // Même en cas d'erreur, on affiche le message de fin
+      if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
+      }
+      setVideoStream(null);
+      setRecordingStage(false);
+      setInterviewStarted(true);
+    }
+  };
+
+  // Fonction pour abandonner l'entretien
+  const abandonInterview = async () => {
+    try {
+      // Arrêter l'enregistrement en cours si nécessaire
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+      }
+      
+      // Appeler l'API pour marquer l'entretien comme abandonné
+      await api.post(`/interviews/campaign-links/${token}/abandon_interview/`);
+      
+      // Fermer la caméra
+      if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
+      }
+      setVideoStream(null);
+      setRecordingStage(false);
+      setInterviewStarted(true); // Afficher le message de fin (mais avec un message différent)
+    } catch (error) {
+      console.error('Erreur lors de l\'abandon de l\'entretien:', error);
+      // Même en cas d'erreur, on ferme l'entretien
+      if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
+      }
+      setVideoStream(null);
+      setRecordingStage(false);
+      setInterviewStarted(true);
+    }
+  };
+
+  // Fonction pour confirmer la sortie
+  const handleExitInterview = () => {
+    setShowExitConfirm(true);
+  };
+
+  // Fonction pour confirmer l'abandon
+  const confirmAbandonInterview = () => {
+    setShowExitConfirm(false);
+    abandonInterview();
   };
 
   const handleStartInterview = () => {
@@ -678,8 +740,20 @@ const EntretienPage = () => {
             {/* Colonne principale - Question et contrôles */}
             <Col lg={8}>
               <div className="text-center mb-4">
-                <h3 className="text-primary">Répondez à la question</h3>
-                <div className="d-flex justify-content-center align-items-center mt-2">
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                  <Button 
+                    variant="outline-danger" 
+                    size="sm"
+                    onClick={handleExitInterview}
+                    className="d-flex align-items-center"
+                  >
+                    <i className="bi bi-box-arrow-left me-2"></i>
+                    Quitter l'entretien
+                  </Button>
+                  <h3 className="text-primary mb-0">Répondez à la question</h3>
+                  <div style={{ width: '140px' }}></div> {/* Spacer pour centrer le titre */}
+                </div>
+                <div className="d-flex justify-content-center align-items-center">
                   <Badge bg="primary" className="me-2">
                     Question {currentQuestionIndex + 1}/{questions.length}
                   </Badge>
@@ -887,6 +961,59 @@ const EntretienPage = () => {
             </Col>
           </Row>
         </Container>
+
+        {/* Modal de confirmation pour quitter l'entretien */}
+        <Modal show={showExitConfirm} onHide={() => setShowExitConfirm(false)} centered>
+          <Modal.Header closeButton className="bg-warning text-dark">
+            <Modal.Title>
+              <i className="bi bi-exclamation-triangle me-2"></i>
+              Quitter l'entretien ?
+            </Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <div className="text-center mb-4">
+              <i className="bi bi-question-circle text-warning" style={{ fontSize: '3rem' }}></i>
+            </div>
+            <h5 className="text-center mb-3">Êtes-vous sûr de vouloir quitter l'entretien ?</h5>
+            <div className="alert alert-info">
+              <h6 className="alert-heading">
+                <i className="bi bi-info-circle me-2"></i>
+                Ce qui sera sauvegardé :
+              </h6>
+              <ul className="mb-0">
+                <li>Toutes les réponses que vous avez déjà enregistrées</li>
+                <li>Votre progression jusqu'à la question {currentQuestionIndex + 1}</li>
+              </ul>
+            </div>
+            <div className="alert alert-warning">
+              <h6 className="alert-heading">
+                <i className="bi bi-exclamation-triangle me-2"></i>
+                Attention :
+              </h6>
+              <ul className="mb-0">
+                <li><strong>Vous ne pourrez plus utiliser ce lien d'invitation</strong></li>
+                <li>L'entretien sera marqué comme abandonné</li>
+                <li>Le recruteur sera informé de l'abandon</li>
+              </ul>
+            </div>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button 
+              variant="secondary" 
+              onClick={() => setShowExitConfirm(false)}
+            >
+              <i className="bi bi-arrow-left me-2"></i>
+              Continuer l'entretien
+            </Button>
+            <Button 
+              variant="danger" 
+              onClick={confirmAbandonInterview}
+            >
+              <i className="bi bi-box-arrow-left me-2"></i>
+              Oui, quitter définitivement
+            </Button>
+          </Modal.Footer>
+        </Modal>
       </div>
     );
   }

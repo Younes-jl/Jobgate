@@ -536,6 +536,139 @@ class JobApplicationViewSet(viewsets.ModelViewSet):
         applications = JobApplication.objects.filter(candidate=request.user).order_by('-created_at')
         serializer = self.get_serializer(applications, many=True)
         return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'], url_path='technical-interview')
+    def technical_interview(self, request, pk=None):
+        """Programmer un entretien technique et envoyer un email au candidat"""
+        logger.info(f"🎯 Tentative de programmation d'entretien technique - User: {request.user.id}, Application ID: {pk}")
+        
+        try:
+            application = self.get_object()
+            logger.info(f"✅ Application trouvée: {application.id} - Candidat: {application.candidate.email}")
+            logger.info(f"📋 Offre: {application.job_offer.title} - Recruteur: {application.job_offer.recruiter.id}")
+        except Exception as e:
+            logger.error(f"❌ Erreur lors de la récupération de l'application: {e}")
+            return Response(
+                {"detail": f"Application non trouvée: {e}"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Vérifier si l'utilisateur est le recruteur de l'offre
+        logger.info(f"🔐 Vérification permissions - User: {request.user.id} vs Recruteur: {application.job_offer.recruiter.id}")
+        if request.user != application.job_offer.recruiter and not request.user.is_staff:
+            logger.error(f"❌ Permission refusée - User {request.user.id} n'est pas le recruteur {application.job_offer.recruiter.id}")
+            return Response(
+                {"detail": "Seul le recruteur qui a publié l'offre peut programmer un entretien technique."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Récupérer les données de l'entretien
+        interview_date = request.data.get('date')
+        interview_time = request.data.get('time')
+        interview_location = request.data.get('location')
+        candidate_email = request.data.get('candidate_email')
+        
+        # Validation des données
+        if not all([interview_date, interview_time, interview_location]):
+            return Response(
+                {"detail": "La date, l'heure et le lieu de l'entretien sont obligatoires."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validation de l'email du candidat
+        if not candidate_email or candidate_email != application.candidate.email:
+            return Response(
+                {"detail": "Email du candidat invalide."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Formatage de la date et heure pour l'email
+            from datetime import datetime
+            interview_datetime = f"{interview_date} à {interview_time}"
+            
+            # Préparation du contenu de l'email
+            candidate_name = f"{application.candidate.first_name} {application.candidate.last_name}".strip()
+            if not candidate_name.strip():
+                candidate_name = application.candidate.username
+            
+            recruiter_name = f"{request.user.first_name} {request.user.last_name}".strip()
+            if not recruiter_name.strip():
+                recruiter_name = request.user.username
+            
+            subject = f"🎯 Invitation à l'entretien technique - {application.job_offer.title}"
+            
+            message = f"""Bonjour {candidate_name},
+
+Félicitations ! Nous avons le plaisir de vous inviter à un entretien technique pour le poste :
+
+📋 **{application.job_offer.title}**
+🏢 Entreprise : {recruiter_name}
+📍 Lieu : {application.job_offer.location}
+
+📅 **DÉTAILS DE L'ENTRETIEN TECHNIQUE :**
+
+🗓️ **Date et heure :** {interview_datetime}
+📍 **Lieu de l'entretien :** {interview_location}
+⏱️ **Durée estimée :** 1 heure
+
+📝 **PRÉPARATION RECOMMANDÉE :**
+• Préparez vos projets et réalisations techniques
+• Apportez votre CV et portfolio si disponible
+• Révisez les compétences techniques mentionnées dans l'offre
+• Préparez des questions sur le poste et l'entreprise
+
+💼 **CE QUI VOUS ATTEND :**
+• Discussion sur votre parcours technique
+• Questions sur vos compétences et expériences
+• Présentation éventuelle de vos projets
+• Échanges sur les missions du poste
+
+⚠️ **IMPORTANT :**
+• Merci de confirmer votre présence en répondant à cet email
+• En cas d'empêchement, contactez-nous au plus tôt pour reprogrammer
+• Arrivez 10 minutes avant l'heure prévue
+
+Pour toute question ou information complémentaire, n'hésitez pas à nous contacter.
+
+Nous avons hâte de vous rencontrer et d'échanger avec vous !
+
+Cordialement,
+{recruiter_name}
+L'équipe {application.job_offer.recruiter.get_full_name() if hasattr(application.job_offer.recruiter, 'get_full_name') else 'JobGate'}
+
+---
+🔒 Ce message est confidentiel et destiné uniquement à la personne mentionnée."""
+            
+            # Envoi de l'email
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=None,  # Utilise DEFAULT_FROM_EMAIL
+                recipient_list=[candidate_email],
+                fail_silently=False
+            )
+            
+            logger.info(f"Email d'entretien technique envoyé à {candidate_email} pour la candidature {application.id}")
+            
+            return Response({
+                "detail": "Entretien technique programmé avec succès",
+                "interview_details": {
+                    "date": interview_date,
+                    "time": interview_time,
+                    "location": interview_location,
+                    "candidate_email": candidate_email,
+                    "datetime_formatted": interview_datetime
+                },
+                "email_sent": True
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de l'envoi de l'email d'entretien technique: {str(e)}")
+            return Response(
+                {"detail": f"Erreur lors de l'envoi de l'email: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class CampaignLinkViewSet(viewsets.ViewSet):
@@ -736,6 +869,59 @@ L'équipe JobGate
         
         send_mail(subject, message, None, [to_email], fail_silently=False)
         return Response({"detail": "Invitation envoyée", "email": to_email, "start_url": start_url})
+    
+    @action(detail=True, methods=['post'], permission_classes=[AllowAny])
+    def start_interview(self, request, pk=None):
+        """Marque l'entretien comme commencé (en cours)."""
+        try:
+            link = CampaignLink.objects.get(token=pk)
+        except CampaignLink.DoesNotExist:
+            return Response({"valid": False, "detail": "Token invalide"}, status=status.HTTP_404_NOT_FOUND)
+        
+        if not link.is_valid:
+            return Response({"valid": False, "detail": "Lien invalide ou expiré"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Marquer comme en cours
+        link.mark_in_progress()
+        
+        return Response({
+            "detail": "Entretien marqué comme en cours",
+            "status": link.status
+        })
+    
+    @action(detail=True, methods=['post'], permission_classes=[AllowAny])
+    def complete_interview(self, request, pk=None):
+        """Marque l'entretien comme terminé avec succès."""
+        try:
+            link = CampaignLink.objects.get(token=pk)
+        except CampaignLink.DoesNotExist:
+            return Response({"valid": False, "detail": "Token invalide"}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Marquer comme terminé
+        link.mark_completed()
+        
+        return Response({
+            "detail": "Entretien terminé avec succès",
+            "status": link.status,
+            "completed_at": link.completed_at
+        })
+    
+    @action(detail=True, methods=['post'], permission_classes=[AllowAny])
+    def abandon_interview(self, request, pk=None):
+        """Marque l'entretien comme abandonné par le candidat."""
+        try:
+            link = CampaignLink.objects.get(token=pk)
+        except CampaignLink.DoesNotExist:
+            return Response({"valid": False, "detail": "Token invalide"}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Marquer comme abandonné
+        link.mark_abandoned()
+        
+        return Response({
+            "detail": "Entretien marqué comme abandonné",
+            "status": link.status,
+            "completed_at": link.completed_at
+        })
     
     @action(detail=False, methods=['get'])
     def job_applications(self, request):
