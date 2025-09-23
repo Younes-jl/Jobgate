@@ -923,6 +923,38 @@ L'équipe JobGate
             "completed_at": link.completed_at
         })
     
+    @action(detail=True, methods=['post'])
+    def reset_interview(self, request, pk=None):
+        """Réinitialise un entretien pour permettre une nouvelle tentative."""
+        try:
+            link = CampaignLink.objects.get(pk=pk)
+        except CampaignLink.DoesNotExist:
+            return Response({"detail": "Lien introuvable"}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Vérifier les permissions - seul le recruteur peut réinitialiser
+        if request.user != link.campaign.job_offer.recruiter and not request.user.is_staff:
+            return Response({"detail": "Non autorisé"}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Supprimer toutes les réponses existantes pour ce candidat/campagne
+        from .models import InterviewAnswer
+        deleted_count = InterviewAnswer.objects.filter(
+            question__campaign=link.campaign,
+            candidate=link.candidate
+        ).delete()[0]
+        
+        # Réinitialiser le statut du lien
+        link.status = 'active'
+        link.completed_at = None
+        link.used_at = None
+        link.uses_count = 0
+        link.save(update_fields=['status', 'completed_at', 'used_at', 'uses_count'])
+        
+        return Response({
+            "detail": f"Entretien réinitialisé avec succès. {deleted_count} réponse(s) supprimée(s).",
+            "status": link.status,
+            "deleted_answers": deleted_count
+        })
+    
     @action(detail=False, methods=['get'])
     def job_applications(self, request):
         """Liste des candidatures pour une offre spécifique"""

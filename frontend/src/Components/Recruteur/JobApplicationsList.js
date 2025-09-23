@@ -84,8 +84,9 @@ const JobApplicationsList = ({ jobOfferId }) => {
     }
   };
 
+
   // Envoyer une invitation d'entretien différé au candidat
-  const handleInviteCandidate = async (applicationId, candidateName) => {
+  const handleInviteCandidate = async (applicationId, candidateName, isReinvite = false) => {
     try {
       // Récupérer le délai sélectionné
       const responseDeadlineElement = document.getElementById('responseDeadline');
@@ -93,8 +94,24 @@ const JobApplicationsList = ({ jobOfferId }) => {
 
       console.log('Données à envoyer:', {
         application_id: applicationId,
-        response_deadline_hours: responseDeadlineHours
+        response_deadline_hours: responseDeadlineHours,
+        is_reinvite: isReinvite
       });
+
+      // Si c'est une réinvitation, d'abord réinitialiser l'entretien
+      if (isReinvite) {
+        const application = applications.find(app => app.id === applicationId);
+        if (application && application.campaign_link) {
+          try {
+            console.log('Réinitialisation de l\'entretien avant réinvitation...');
+            await api.post(`/interviews/campaign-links/${application.campaign_link.id}/reset_interview/`);
+            console.log('Entretien réinitialisé avec succès');
+          } catch (resetErr) {
+            console.error('Erreur lors de la réinitialisation:', resetErr);
+            // On continue quand même pour essayer de créer un nouveau lien
+          }
+        }
+      }
 
       // Créer/récupérer un lien unique côté backend avec le délai personnalisé
       const { data } = await api.post(`/interviews/campaign-links/`, {
@@ -116,7 +133,8 @@ const JobApplicationsList = ({ jobOfferId }) => {
       // Afficher le lien de démarrage et proposer de copier
       const expirationDate = new Date(data.expires_at);
       const hoursUntilExpiration = Math.round((expirationDate - new Date()) / (1000 * 60 * 60));
-      const msg = `✅ Invitation générée et envoyée par email à ${candidateName}.
+      const actionText = isReinvite ? 'Réinvitation' : 'Invitation';
+      const msg = `✅ ${actionText} générée et envoyée par email à ${candidateName}.${isReinvite ? '\n\n🔄 Les anciennes réponses ont été supprimées automatiquement.' : ''}
 
 📧 Email: ${data.email || 'Email du candidat'}
 🔗 Lien: ${data.start_url}
@@ -129,6 +147,9 @@ const JobApplicationsList = ({ jobOfferId }) => {
         } catch { /* noop */ }
       }
       alert(msg + "\n\n📋 Le lien a été copié dans le presse-papiers.");
+      
+      // Recharger les candidatures pour mettre à jour l'affichage
+      fetchApplications();
     } catch (err) {
       console.error('Error sending invitation:', err);
       const status = err.response?.status;
@@ -311,36 +332,35 @@ const JobApplicationsList = ({ jobOfferId }) => {
                           <i className="bi bi-eye me-1"></i> Détails
                         </Button>
 
-                        {application.status === 'pending' && (
-                          <Button
-                            className="btn-invite"
-                            size="sm"
-                            onClick={() => setConfirmationModal({
-                              show: true,
-                              candidate: {...application.candidate, application_id: application.id},
-                              action: 'invite',
-                              applicationId: application.id
-                            })}
-                          >
-                            <i className="bi bi-send me-1"></i> Inviter
-                          </Button>
-                        )}
-
-                        {(application.status === 'accepted' || 
-                          application.status === 'rejected') && (
-                          <Button
-                            className="btn-reinvite"
-                            size="sm"
-                            onClick={() => setConfirmationModal({
-                              show: true,
-                              candidate: {...application.candidate, application_id: application.id},
-                              action: 'reinvite',
-                              applicationId: application.id
-                            })}
-                          >
-                            <i className="bi bi-arrow-clockwise me-1"></i> Réinviter
-                          </Button>
-                        )}
+                        {/* Bouton unique qui s'adapte : Inviter ou Réinviter */}
+                        {(() => {
+                          // Déterminer si c'est une première invitation ou une réinvitation
+                          const hasBeenInvited = application.campaign_link !== null;
+                          const isReinvite = hasBeenInvited;
+                          const buttonText = isReinvite ? 'Réinviter' : 'Inviter';
+                          const buttonIcon = isReinvite ? 'bi-arrow-clockwise' : 'bi-send';
+                          const buttonClass = isReinvite ? 'btn-reinvite' : 'btn-invite';
+                          
+                          return (
+                            <Button
+                              className={buttonClass}
+                              size="sm"
+                              onClick={() => setConfirmationModal({
+                                show: true,
+                                candidate: {...application.candidate, application_id: application.id},
+                                action: isReinvite ? 'reinvite' : 'invite',
+                                applicationId: application.id
+                              })}
+                              title={isReinvite && application.campaign_link && 
+                                     (application.campaign_link.status === 'completed' || 
+                                      application.campaign_link.status === 'abandoned') 
+                                     ? "Réinviter le candidat (supprimera automatiquement les anciennes réponses)" 
+                                     : `${buttonText} le candidat`}
+                            >
+                              <i className={`bi ${buttonIcon} me-1`}></i> {buttonText}
+                            </Button>
+                          );
+                        })()}
                       </div>
 
                     </div>
@@ -409,6 +429,28 @@ const JobApplicationsList = ({ jobOfferId }) => {
             }
           </div>
           
+          {/* Avertissement spécial pour les réinvitations avec entretien terminé */}
+          {confirmationModal.action === 'reinvite' && confirmationModal.candidate && (
+            (() => {
+              const application = applications.find(app => app.candidate.id === confirmationModal.candidate.id);
+              return application && application.campaign_link && 
+                     (application.campaign_link.status === 'completed' || 
+                      application.campaign_link.status === 'abandoned') ? (
+                <div className="alert alert-warning">
+                  <i className="bi bi-exclamation-triangle me-2"></i>
+                  <strong>Attention :</strong> Ce candidat a déjà passé l'entretien ({application.campaign_link.status === 'completed' ? 'terminé' : 'abandonné'}).
+                  <br/>
+                  <strong>La réinvitation va automatiquement :</strong>
+                  <ul className="mb-0 mt-2">
+                    <li>Supprimer toutes les anciennes réponses vidéo</li>
+                    <li>Réactiver le lien d'entretien</li>
+                    <li>Permettre au candidat de repasser l'entretien</li>
+                  </ul>
+                </div>
+              ) : null;
+            })()
+          )}
+          
           {/* Options avancées d'email */}
           <div className="border rounded p-3 mb-3">
             <h6 className="fw-bold mb-3">
@@ -457,11 +499,10 @@ const JobApplicationsList = ({ jobOfferId }) => {
           <Button 
             variant="primary" 
             onClick={() => {
-              if (confirmationModal.action === 'invite') {
-                handleInviteCandidate(confirmationModal.candidate.application_id, `${confirmationModal.candidate.first_name} ${confirmationModal.candidate.last_name}`);
-              } else if (confirmationModal.action === 'reinvite') {
-                handleInviteCandidate(confirmationModal.candidate.application_id, `${confirmationModal.candidate.first_name} ${confirmationModal.candidate.last_name}`);
-              }
+              const candidateName = `${confirmationModal.candidate.first_name} ${confirmationModal.candidate.last_name}`;
+              const isReinvite = confirmationModal.action === 'reinvite';
+              
+              handleInviteCandidate(confirmationModal.candidate.application_id, candidateName, isReinvite);
               setConfirmationModal({ show: false, candidate: null, action: null });
             }}
           >
