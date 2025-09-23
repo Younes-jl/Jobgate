@@ -32,6 +32,10 @@ from .cloudinary_service import CloudinaryVideoService
 from .services.ai_video_evaluation_service import AIVideoEvaluationService
 from django.conf import settings
 import logging
+import jwt
+from datetime import datetime, timedelta
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
 
 logger = logging.getLogger(__name__)
 
@@ -385,6 +389,159 @@ class InterviewCampaignViewSet(viewsets.ModelViewSet):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['post'])
+    def invite_hiring_manager(self, request, pk=None):
+        """Invite un Hiring Manager à accéder aux résultats de la campagne"""
+        campaign = self.get_object()
+        
+        # Vérifier que l'utilisateur est le recruteur de cette campagne
+        if request.user != campaign.job_offer.recruiter and not request.user.is_staff:
+            return Response(
+                {"detail": "Vous n'êtes pas autorisé à inviter des Hiring Managers pour cette campagne."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        email = request.data.get('email')
+        message = request.data.get('message', '')
+        
+        if not email:
+            return Response(
+                {"detail": "L'email du Hiring Manager est requis."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Créer un token JWT signé avec les informations nécessaires
+            payload = {
+                'campaign_id': campaign.id,
+                'email': email,
+                'recruiter_id': request.user.id,
+                'recruiter_name': f"{request.user.first_name} {request.user.last_name}" or request.user.username,
+                'job_title': campaign.job_offer.title,
+                'company': getattr(request.user, 'company', 'JobGate'),
+                'exp': datetime.utcnow() + timedelta(days=30),  # Expire dans 30 jours
+                'iat': datetime.utcnow(),
+                'type': 'hiring_manager_access'
+            }
+            
+            # Utiliser la SECRET_KEY de Django pour signer le token
+            token = jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
+            
+            # Générer l'URL d'accès pour le frontend
+            # En développement, le frontend tourne sur le port 3000
+            frontend_base_url = "http://localhost:3000"
+            access_url = f"{frontend_base_url}/hiring-manager/{token}"
+            
+            # Préparer le contexte pour l'email
+            email_context = {
+                'hiring_manager_email': email,
+                'recruiter_name': payload['recruiter_name'],
+                'job_title': campaign.job_offer.title,
+                'company': payload['company'],
+                'campaign_title': campaign.title,
+                'access_url': access_url,
+                'message': message,
+                'expires_at': (datetime.now() + timedelta(days=30)).strftime('%d/%m/%Y')
+            }
+            
+            # Envoyer l'email d'invitation
+            subject = f"Invitation à évaluer les candidats - {campaign.job_offer.title}"
+            
+            # Template HTML pour l'email
+            html_message = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h2 style="color: #2c3e50;">🎯 Invitation à évaluer des candidats</h2>
+                    
+                    <p>Bonjour,</p>
+                    
+                    <p><strong>{payload['recruiter_name']}</strong> vous invite à évaluer les candidats pour le poste :</p>
+                    
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                        <h3 style="margin: 0; color: #495057;">📋 {campaign.job_offer.title}</h3>
+                        <p style="margin: 5px 0; color: #6c757d;">Campagne : {campaign.title}</p>
+                        <p style="margin: 5px 0; color: #6c757d;">Entreprise : {payload['company']}</p>
+                    </div>
+                    
+                    {f'<div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin: 20px 0;"><p style="margin: 0;"><strong>Message du recruteur :</strong></p><p style="margin: 10px 0 0 0; font-style: italic;">"{message}"</p></div>' if message else ''}
+                    
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{access_url}" 
+                           style="background: #007bff; color: white; padding: 12px 30px; 
+                                  text-decoration: none; border-radius: 5px; font-weight: bold;
+                                  display: inline-block;">
+                            🔍 Accéder aux évaluations
+                        </a>
+                    </div>
+                    
+                    <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                        <p style="margin: 0;"><strong>ℹ️ Informations importantes :</strong></p>
+                        <ul style="margin: 10px 0 0 20px;">
+                            <li>Vous pourrez consulter les vidéos des candidats et leurs évaluations</li>
+                            <li>Aucune inscription n'est nécessaire</li>
+                            <li>Ce lien expire le {email_context['expires_at']}</li>
+                            <li>Accès en lecture seule (consultation uniquement)</li>
+                        </ul>
+                    </div>
+                    
+                    <hr style="border: none; border-top: 1px solid #dee2e6; margin: 30px 0;">
+                    
+                    <p style="font-size: 12px; color: #6c757d; text-align: center;">
+                        Cette invitation a été envoyée via JobGate - Plateforme de recrutement vidéo<br>
+                        Si vous avez des questions, contactez directement {payload['recruiter_name']}
+                    </p>
+                </div>
+            </body>
+            </html>
+            """
+            
+            # Message texte simple en fallback
+            text_message = f"""
+            Invitation à évaluer des candidats - {campaign.job_offer.title}
+            
+            Bonjour,
+            
+            {payload['recruiter_name']} vous invite à évaluer les candidats pour le poste : {campaign.job_offer.title}
+            Campagne : {campaign.title}
+            Entreprise : {payload['company']}
+            
+            {f'Message du recruteur : "{message}"' if message else ''}
+            
+            Cliquez sur ce lien pour accéder aux évaluations :
+            {access_url}
+            
+            Ce lien expire le {email_context['expires_at']}.
+            Aucune inscription n'est nécessaire.
+            
+            ---
+            JobGate - Plateforme de recrutement vidéo
+            """
+            
+            # Envoyer l'email
+            send_mail(
+                subject=subject,
+                message=text_message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[email],
+                html_message=html_message,
+                fail_silently=False,
+            )
+            
+            return Response({
+                "detail": "Invitation envoyée avec succès au Hiring Manager.",
+                "email": email,
+                "access_url": access_url,
+                "expires_at": email_context['expires_at']
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de l'envoi de l'invitation HM: {str(e)}")
+            return Response(
+                {"detail": "Erreur lors de l'envoi de l'invitation. Veuillez réessayer."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=True, methods=['delete'])
     def remove_question(self, request, pk=None):

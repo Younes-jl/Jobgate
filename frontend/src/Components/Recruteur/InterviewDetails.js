@@ -711,29 +711,50 @@ const InterviewDetails = () => {
     if (!application) return;
     
     try {
-      const invitationData = {
-        manager_email: managerEmail,
-        application_id: applicationId,
-        candidate_name: application.candidate.first_name && application.candidate.last_name 
-          ? `${application.candidate.first_name} ${application.candidate.last_name}`
-          : application.candidate.username,
-        job_title: application.job_offer?.title || 'Poste non spécifié',
-        message: message,
-        evaluation_summary: {
-          ai_analysis: aiAnalysis,
-          final_scores: finalEvaluation
+      // Récupérer les campagnes pour cette offre d'emploi
+      let campaignId = null;
+      
+      try {
+        const campaignsResponse = await api.get(`/interviews/campaigns/?job_offer=${application.job_offer.id}`);
+        const campaigns = campaignsResponse.data;
+        
+        if (campaigns && campaigns.length > 0) {
+          // Prendre la première campagne active ou la première campagne disponible
+          const activeCampaign = campaigns.find(c => c.active) || campaigns[0];
+          campaignId = activeCampaign.id;
         }
+      } catch (campaignError) {
+        console.error('Erreur lors de la récupération des campagnes:', campaignError);
+      }
+      
+      if (!campaignId) {
+        alert('Aucune campagne d\'entretien trouvée pour cette offre d\'emploi. Veuillez créer une campagne d\'entretien pour cette offre avant d\'inviter un Hiring Manager.');
+        return;
+      }
+      
+      const invitationData = {
+        email: managerEmail,
+        message: message
       };
       
-      console.log('Invitation manager:', invitationData);
-      // TODO: Ajouter l'appel API réel
-      // await api.post('/interviews/invite-manager/', invitationData);
+      console.log('Invitation Hiring Manager:', invitationData, 'Campaign ID:', campaignId);
       
-      alert('Manager invité avec succès!');
+      // Appeler l'endpoint pour inviter le Hiring Manager
+      const response = await api.post(`/interviews/campaigns/${campaignId}/invite_hiring_manager/`, invitationData);
+      
+      alert(`✅ Hiring Manager invité avec succès !
+
+📧 Email: ${response.data.email}
+🔗 Lien d'accès généré et envoyé
+⏰ Expire le: ${response.data.expires_at}
+
+Le Hiring Manager recevra un email avec un lien direct pour consulter toutes les évaluations de cette campagne.`);
+      
       setInviteManagerModal(false);
     } catch (error) {
       console.error('Erreur lors de l\'invitation:', error);
-      alert('Erreur lors de l\'envoi de l\'invitation');
+      const detail = error.response?.data?.detail || 'Erreur inconnue';
+      alert(`❌ Erreur lors de l'envoi de l'invitation :\n\n${detail}`);
     }
   };
 

@@ -24,6 +24,7 @@ import CandidateNavbar from './Components/Candidat/CandidateNavbar';
 import RecruiterNavbar from './Components/Recruteur/RecruiterNavbar';
 import LoginNavbar from './Components/auth/LoginNavbar';
 import EntretienPage from './Components/Entretien/entretienDetails';
+import HiringManagerDashboard from './Components/HiringManager/HiringManagerDashboard';
 
 
 // Importer les styles CSS
@@ -77,8 +78,9 @@ function AppContent() {
     const { user, isTokenChecked } = useAuth();
     const location = useLocation();
     
-    // Vérifier si on est sur la page d'entretien ou de login
+    // Vérifier si on est sur la page d'entretien, hiring manager ou de login
     const isInterviewPage = location.pathname.startsWith('/interview/');
+    const isHiringManagerPage = location.pathname.startsWith('/hiring-manager/');
     const isLoginPage = location.pathname === '/login';
 
     // Si le token n'est pas encore vérifié, on peut afficher un indicateur de chargement
@@ -92,8 +94,8 @@ function AppContent() {
 
     return (
         <div>
-            {/* Afficher la navbar seulement si on n'est PAS sur la page d'entretien */}
-            {!isInterviewPage && (
+            {/* Afficher la navbar seulement si on n'est PAS sur la page d'entretien ou hiring manager */}
+            {!isInterviewPage && !isHiringManagerPage && (
                 <>
                     {/* Navbar pour la page de login */}
                     {isLoginPage && <LoginNavbar />}
@@ -109,10 +111,13 @@ function AppContent() {
                 </>
             )}
 
-            <div style={{ padding: isInterviewPage ? '0' : '20px', paddingTop: (user && (user.role === 'CANDIDAT' || user.role === 'RECRUTEUR')) || isLoginPage || (!user && !isLoginPage) ? '80px' : '0' }}>
+            <div style={{ padding: (isInterviewPage || isHiringManagerPage) ? '0' : '20px', paddingTop: (user && (user.role === 'CANDIDAT' || user.role === 'RECRUTEUR')) || isLoginPage || (!user && !isLoginPage) ? '80px' : '0' }}>
                     <Routes>
                         {/* Page d'entretien via lien d'invitation (publique) - DOIT ÊTRE EN PREMIER */}
                         <Route path="/interview/start/:token" element={<EntretienPage />} />
+                        
+                        {/* Page Hiring Manager via token JWT (publique) */}
+                        <Route path="/hiring-manager/:token" element={<HiringManagerDashboard />} />
                         
               
                         

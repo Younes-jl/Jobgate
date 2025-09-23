@@ -7,6 +7,7 @@ from .views import (
     CloudinaryVideoUploadView, AIQuestionGeneratorView, AIQuestionAnalysisView,
     AiEvaluationViewSet
 )
+from .hiring_manager_views import HiringManagerAccessView
 from .applications_api import candidate_details
 from .notification_views import NotificationViewSet
 from .test_views import test_env_vars
@@ -48,4 +49,7 @@ urlpatterns = [
     
     # ========== URL pour les détails candidat ==========
     path('candidates/<int:candidate_id>/details/', candidate_details, name='candidate-details'),
+    
+    # ========== URL pour l'accès Hiring Manager ==========
+    path('hiring-manager/<str:token>/', HiringManagerAccessView.as_view(), name='hiring-manager-access'),
 ]
