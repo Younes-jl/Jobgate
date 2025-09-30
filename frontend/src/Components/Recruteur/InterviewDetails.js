@@ -15,15 +15,6 @@ const InterviewDetails = () => {
   const [error, setError] = useState(null); // Modified line
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0); // Modified line
   const [videoPlaying, setVideoPlaying] = useState(false); // Modified line
-  const [finalEvaluation, setFinalEvaluation] = useState({ // Modified line
-    technical: 0,
-    communication: 0,
-    motivation: 0,
-    style: 0,
-    nonVerbal: 0,
-    global: 0,
-    generalComments: ''
-  });
   
   // États pour l'évaluation par question
   const [questionEvaluations, setQuestionEvaluations] = useState({});
@@ -71,7 +62,6 @@ const InterviewDetails = () => {
   const [processingAction, setProcessingAction] = useState(false);
   
   // AI analysis state variables (disabled but kept for compatibility)
-  const [aiAnalysis, setAiAnalysis] = useState(null);
   const [analyzingAI, setAnalyzingAI] = useState(false);
   const [currentVideoAnalysis, setCurrentVideoAnalysis] = useState(null);
   const [hasExistingAIEvaluation, setHasExistingAIEvaluation] = useState(false);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { Container, Row, Col, Card, Badge, Alert, Modal, Button, Spinner } from 'react-bootstrap';
 import axios from 'axios';
@@ -16,23 +16,7 @@ const HiringManagerDashboard = () => {
   
   const videoRef = useRef(null);
 
-  useEffect(() => {
-    fetchCampaignData();
-  }, [token]);
-
-  // Get current candidate and answer for the video player
-  const currentCandidate = data?.candidates?.[currentCandidateIndex];
-  const currentAnswer = currentCandidate?.answers?.[currentQuestionIndex];
-
-  // Debug: Log current candidate data
-  useEffect(() => {
-    if (currentCandidate) {
-      console.log('Current candidate data:', currentCandidate);
-      console.log('Global evaluation:', currentCandidate.global_evaluation);
-    }
-  }, [currentCandidate]);
-
-  const fetchCampaignData = async () => {
+  const fetchCampaignData = useCallback(async () => {
     try {
       setLoading(true);
       console.log('Token reçu:', token);
@@ -55,13 +39,26 @@ const HiringManagerDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
 
-  const getScoreColor = (score) => {
-    if (score >= 80) return 'success';
-    if (score >= 60) return 'warning';
-    return 'danger';
-  };
+  useEffect(() => {
+    fetchCampaignData();
+  }, [fetchCampaignData]);
+
+  // Get current candidate and answer for the video player
+  const currentCandidate = data?.candidates?.[currentCandidateIndex];
+  const currentAnswer = currentCandidate?.answers?.[currentQuestionIndex];
+
+  // Debug: Log current candidate data
+  useEffect(() => {
+    if (currentCandidate) {
+      console.log('Current candidate data:', currentCandidate);
+      console.log('Global evaluation:', currentCandidate.global_evaluation);
+    }
+  }, [currentCandidate]);
+
+
+  // Removed unused getScoreColor function
 
   const formatDuration = (seconds) => {
     if (!seconds) return '0:00';
